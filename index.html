@@ -160,7 +160,7 @@
   .result-box strong{font-weight:600;color:#111}
   .result-box table{border-collapse:collapse;width:100%;margin:10px 0 14px;font-size:12.5px}
   .result-box table th,.result-box table td{border:1px solid #ccc;padding:7px 10px;text-align:left;vertical-align:top}
-  .result-box table th{background:var(--green-light);font-weight:600;color:var(--green-dark)}
+  .result-box table th{background:#f8f9fa;font-weight:600;color:#333}
   .result-box hr{border:none;border-top:1px solid var(--border);margin:24px 0}
   .result-box .penutup-wrap{margin-top:32px}
   .spinner{width:32px;height:32px;border:3px solid var(--green-light);border-top-color:var(--green);border-radius:50%;animation:spin .7s linear infinite}
@@ -250,6 +250,26 @@
 <body>
 
 <!-- ══ ONBOARDING OVERLAY (tampil hanya pertama kali) ══ -->
+<!-- ══ INVITE CODE SCREEN ══ -->
+<div id="invite-overlay" class="ob-overlay" style="display:none">
+  <div class="ob-modal">
+    <span class="ob-emoji">🔑</span>
+    <h1>Masukkan Kode Akses Beta</h1>
+    <p>Aplikasi ini saat ini dalam tahap <strong>Beta Terbatas</strong>. Masukkan kode invite yang Anda terima untuk melanjutkan.</p>
+    <div class="field" style="margin:20px 0 8px">
+      <input id="invite-input" type="text" placeholder="Contoh: BETA-01"
+        style="text-align:center;font-size:18px;font-weight:700;letter-spacing:2px;text-transform:uppercase"
+        oninput="this.value=this.value.toUpperCase()"
+        onkeydown="if(event.key==='Enter') submitInviteCode()">
+    </div>
+    <div id="invite-error" style="color:#DC2626;font-size:12px;text-align:center;min-height:18px;margin-bottom:8px"></div>
+    <div class="ob-footer">
+      <button class="btn btn-primary" onclick="submitInviteCode()">Verifikasi Kode →</button>
+      <p style="font-size:11px;color:var(--muted2);text-align:center;margin-top:8px">Belum punya kode? Hubungi <a href="https://instagram.com/sarjan.eth" target="_blank" style="color:var(--green-dark);font-weight:600">@sarjan.eth</a></p>
+    </div>
+  </div>
+</div>
+
 <div id="ob-overlay" class="ob-overlay" style="display:none">
   <div class="ob-modal">
     <span class="ob-emoji">📝</span>
@@ -296,7 +316,8 @@
       <h1>Generator Modul Ajar Madrasah</h1>
       <p>Deep Learning × Kurikulum Berbasis Cinta · Kemenag RI</p>
     </div>
-    <div class="theme-picker" style="margin-left:auto;align-items:center;gap:10px">
+    <div style="margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span id="kuota-badge" style="font-size:11px;font-weight:600;color:var(--green-dark);background:var(--green-light);padding:3px 10px;border-radius:20px;white-space:nowrap"></span>
       <button class="btn-reset" onclick="confirmReset()" title="Reset semua isian form">↺ Mulai Ulang</button>
       <span class="autosave-dot" id="autosave-dot" title="Status simpan otomatis"></span>
       <span class="theme-label">🎨</span>
@@ -772,7 +793,7 @@
       <h2>📄 Hasil Modul Ajar</h2>
       <div class="result-actions">
         <button class="copy-btn" onclick="copyResult()">📋 Salin</button>
-        <button class="copy-btn" onclick="downloadWord()">📝 Download Word</button>
+        <button class="copy-btn" onclick="openInGoogleDocs()">📝 Buka di Google Docs</button>
         <button class="copy-btn primary" onclick="downloadPDF()">📄 Download PDF</button>
       </div>
     </div>
@@ -825,6 +846,74 @@ function showToast(msg, type='error', duration=4000){
   }, duration);
 }
 
+// ══════════════════════════════════════════
+// SISTEM KODE INVITE BETA
+// ══════════════════════════════════════════
+const INVITE_CODES = [
+  'BETA-K7M2','BETA-X9P4','BETA-R3T8','BETA-W5N1','BETA-H6Q9',
+  'BETA-J2L7','BETA-F4V3','BETA-D8B6','BETA-C1Z5','BETA-G9Y2',
+  'BETA-A7E4','BETA-U3S8','BETA-M6I1','BETA-P2O9','BETA-T5N3',
+  'BETA-B8K7','BETA-V4X2','BETA-Q1W6','BETA-L9R5','BETA-E3H8'
+];
+const KUOTA_PER_KODE = 4;
+const INVITE_KEY     = 'mam_invite_code';
+const KUOTA_KEY      = 'mam_kuota_sisa';
+
+function getKuotaSisa(){
+  const v = localStorage.getItem(KUOTA_KEY);
+  return v === null ? KUOTA_PER_KODE : parseInt(v);
+}
+function getKodeAktif(){
+  return localStorage.getItem(INVITE_KEY) || '';
+}
+function kurangKuota(){
+  const sisa = getKuotaSisa();
+  const baru = Math.max(0, sisa - 1);
+  localStorage.setItem(KUOTA_KEY, baru);
+  updateKuotaBadge();
+  return baru;
+}
+function updateKuotaBadge(){
+  const el = document.getElementById('kuota-badge');
+  if(!el) return;
+  const sisa = getKuotaSisa();
+  el.textContent = `${sisa} modul tersisa`;
+  el.style.color  = sisa <= 1 ? '#DC2626' : 'var(--green-dark)';
+}
+
+function submitInviteCode(){
+  const input = document.getElementById('invite-input').value.trim().toUpperCase();
+  const errEl = document.getElementById('invite-error');
+
+  if(!input){
+    errEl.textContent = 'Mohon masukkan kode invite.';
+    return;
+  }
+  if(!INVITE_CODES.includes(input)){
+    errEl.textContent = '❌ Kode tidak valid. Periksa kembali atau hubungi @sarjan.eth.';
+    return;
+  }
+
+  // Kode valid — simpan dan lanjut
+  localStorage.setItem(INVITE_KEY, input);
+  if(localStorage.getItem(KUOTA_KEY) === null){
+    localStorage.setItem(KUOTA_KEY, KUOTA_PER_KODE);
+  }
+  document.getElementById('invite-overlay').style.display = 'none';
+  // Cek apakah perlu tampilkan onboarding
+  checkOnboarding();
+}
+
+function checkInviteCode(){
+  const kode = getKodeAktif();
+  if(!kode || !INVITE_CODES.includes(kode)){
+    // Belum punya kode valid — tampilkan layar invite
+    document.getElementById('invite-overlay').style.display = 'flex';
+    return false;
+  }
+  return true;
+}
+
 // ── Onboarding ──
 function startApp(){
   if(document.getElementById('ob-noshow').checked){
@@ -838,7 +927,6 @@ function checkOnboarding(){
   }
 }
 function showOnboarding(){
-  // Tampilkan onboarding secara manual (misal dari footer), tanpa reset localStorage
   document.getElementById('ob-overlay').style.display='flex';
   window.scrollTo({top:0,behavior:'smooth'});
 }
@@ -1423,8 +1511,14 @@ initAutoSave();
   const dd=String(t.getDate()).padStart(2,'0');
   document.getElementById('tanggal').value=`${yyyy}-${mm}-${dd}`;
 })();
-// Tampilkan onboarding jika pertama kali
-checkOnboarding();
+// Tampilkan invite screen atau onboarding saat pertama buka
+if(!checkInviteCode()){
+  // invite overlay sudah ditampilkan oleh checkInviteCode
+} else {
+  checkOnboarding();
+}
+// Update badge kuota
+updateKuotaBadge();
 
 // ── Preview lengkap (TIDAK panggil AI, hanya tampilan) ──
 function updatePreview(){
@@ -2021,7 +2115,7 @@ Tuliskan 5 pertanyaan refleksi profesional dalam bentuk numbered list untuk guru
 
 ## PENUTUP
 
-Gunakan format teks biasa (BUKAN tabel) agar tidak ada garis kotak yang terlihat. Format PERSIS seperti ini:
+Gunakan format teks biasa (BUKAN tabel) agar tidak ada garis kotak. Format PERSIS seperti ini — gunakan spasi panjang untuk memisahkan kolom kiri dan kanan:
 
 &nbsp;
 
@@ -2029,19 +2123,19 @@ Gunakan format teks biasa (BUKAN tabel) agar tidak ada garis kotak yang terlihat
 
 &nbsp;
 
-Mengetahui, &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Guru Mata Pelajaran,
+Mengetahui,
 
-Kepala Madrasah,
-
-&nbsp;
+Kepala Madrasah, &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Guru Mata Pelajaran,
 
 &nbsp;
 
 &nbsp;
 
-**(Nama Kepala Madrasah)** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **(Nama Guru)**
+&nbsp;
 
-NIP. (NIP Kepala Madrasah) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; NIP. (NIP Guru)
+**(Nama Kepala Madrasah)** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **(Nama Guru)**
+
+NIP. (NIP Kepala Madrasah) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; NIP. (NIP Guru)
 
 ═══════════════════════════════
 KETENTUAN PENULISAN (WAJIB)
@@ -2122,6 +2216,13 @@ async function callAnthropic(apiKey, payload){
 // ── Generate ──
 let lastGeneratedMarkdown='';
 async function generateModul(){
+  // Cek kuota terlebih dahulu
+  const sisa = getKuotaSisa();
+  if(sisa <= 0){
+    showToast('Kuota generate Anda sudah habis (0 modul tersisa). Hubungi @sarjan.eth untuk info lebih lanjut.');
+    return;
+  }
+
   const v=validateBeforeGenerate();
   if(!v.ok){
     showToast(v.msg);
@@ -2184,6 +2285,11 @@ async function generateModul(){
         box.innerHTML='<div style="padding:20px;color:#92400E;background:#FEF3C7;border-radius:8px"><strong>⚠️ AI tidak mengembalikan hasil.</strong><br>Mungkin ada masalah dengan bahan ajar atau input. Coba periksa kembali bahan ajar (pastikan terbaca, bukan scan gambar) atau coba lagi.</div>';
       } else {
         lastGeneratedMarkdown=text;
+        // Kurangi kuota setelah generate berhasil
+        const sisaBaru = kurangKuota();
+        if(sisaBaru <= 1){
+          showToast(`✅ Modul berhasil dibuat! Sisa kuota Anda: ${sisaBaru} modul lagi.`, 'warning');
+        }
         box.className='result-box';
         // Render markdown to HTML
         try {
@@ -2412,8 +2518,78 @@ function openPreviewWindow(autoAction){
 }
 
 // ── Download as Word ──
-function downloadWord(){
-  openPreviewWindow('word');
+// ── Buka di Google Docs ──
+function openInGoogleDocs(){
+  const md = lastGeneratedMarkdown || document.getElementById('result-box').innerText;
+  if(!md || md.trim()===''){
+    showToast('Belum ada hasil modul untuk dibuka.');
+    return;
+  }
+
+  // Konversi markdown ke HTML bersih untuk Google Docs
+  let html = '';
+  try {
+    html = marked.parse(md);
+  } catch(e) {
+    html = md.replace(/\n/g,'<br>');
+  }
+
+  // Bungkus dalam HTML lengkap dengan styling rapi untuk Google Docs
+  const fullHtml = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+  body{font-family:Arial,sans-serif;font-size:11pt;line-height:1.6;margin:2cm;color:#000}
+  h1{font-size:14pt;font-weight:bold;text-align:center;margin-bottom:4px}
+  h2{font-size:12pt;font-weight:bold;margin-top:16px;margin-bottom:6px;border-bottom:1px solid #ccc;padding-bottom:3px}
+  h3{font-size:11pt;font-weight:bold;margin-top:12px;margin-bottom:4px}
+  table{border-collapse:collapse;width:100%;margin:8px 0}
+  td,th{border:1px solid #ccc;padding:6px 10px;font-size:10pt}
+  th{background:#f5f5f5;font-weight:bold}
+  ul,ol{margin:4px 0;padding-left:20px}
+  li{margin-bottom:3px}
+  strong{font-weight:bold}
+  em{font-style:italic}
+  p{margin:4px 0}
+</style>
+</head>
+<body>${html}</body>
+</html>`;
+
+  // Buat Blob HTML dan buka di tab baru — guru tinggal File → Save as Google Docs
+  const blob = new Blob([fullHtml], {type:'text/html;charset=utf-8'});
+  const url  = URL.createObjectURL(blob);
+
+  // Tampilkan modal panduan
+  showGoogleDocsModal(url);
+}
+
+function showGoogleDocsModal(htmlUrl){
+  // Hapus modal lama jika ada
+  const old = document.getElementById('gdocs-modal');
+  if(old) old.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'gdocs-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px';
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:12px;padding:28px;max-width:460px;width:100%;box-shadow:0 8px 32px rgba(0,0,0,.2)">
+      <h3 style="margin:0 0 12px;font-size:16px;color:#1a5276">📝 Buka di Google Docs</h3>
+      <p style="font-size:13px;color:#555;line-height:1.6;margin:0 0 16px">Ikuti 3 langkah mudah:</p>
+      <ol style="font-size:13px;color:#333;line-height:1.8;margin:0 0 20px;padding-left:20px">
+        <li>Klik tombol <strong>"Download HTML"</strong> di bawah</li>
+        <li>Buka <strong>drive.google.com</strong> → klik <strong>"+ Baru"</strong> → <strong>"Upload file"</strong> → pilih file HTML yang baru didownload</li>
+        <li>Setelah terupload, klik kanan file → <strong>"Buka dengan Google Docs"</strong> — modul akan tampil rapi dan siap diedit</li>
+      </ol>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <a href="${htmlUrl}" download="modul-ajar.html" style="padding:9px 18px;background:#1E8449;color:#fff;border-radius:6px;font-size:13px;font-weight:600;text-decoration:none;display:inline-block">⬇️ Download HTML</a>
+        <button onclick="document.getElementById('gdocs-modal').remove()" style="padding:9px 18px;background:#f5f5f5;color:#555;border:1px solid #ddd;border-radius:6px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit">Tutup</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if(e.target===modal) modal.remove(); });
 }
 
 // ── Download as PDF ──
