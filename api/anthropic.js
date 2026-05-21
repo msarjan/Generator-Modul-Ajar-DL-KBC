@@ -1,10 +1,16 @@
 // Vercel Serverless Function — proxy aman ke Anthropic API
 // API key disimpan di environment variable Vercel, tidak pernah terekspos ke browser
 
+const setCorsHeaders = (res) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+};
+
 module.exports = async (req, res) => {
+  setCorsHeaders(res);
+
   if (req.method === 'OPTIONS') {
-    res.setHeader('Access-Control-Allow-Methods', 'POST');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     return res.status(200).end();
   }
 
@@ -45,9 +51,8 @@ module.exports = async (req, res) => {
       headers: {
         'Content-Type': 'application/json',
         'x-api-key': apiKey,
-        // anthropic-beta: pdfs-2024-09-25 dihapus — PDF sudah GA, beta string lama
-        // menyebabkan error "string did not match the expected pattern"
-        'anthropic-version': '2023-06-01'
+        'anthropic-version': '2023-06-01',
+        'anthropic-beta': 'files-api-2025-04-14'
       },
       body: bodyBuffer
     });
