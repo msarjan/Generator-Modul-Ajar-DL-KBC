@@ -19,7 +19,7 @@
     --text:#111827;--muted:#6B7280;--muted2:#9CA3AF;
     --radius:10px;--radius-sm:6px;
   }
-  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Roboto','Inter','Arial',sans-serif;background:var(--bg);color:var(--text);font-size:14px;min-height:100vh}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Roboto','Inter','Arial',sans-serif;background:var(--bg);color:var(--text);font-size:15px;min-height:100vh}
   .container{max-width:780px;margin:0 auto;padding:24px 16px}
 
   /* Header */
@@ -52,7 +52,7 @@
   .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
   .field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
   .field:last-child,.field.last{margin-bottom:0}
-  .field label{font-size:12px;font-weight:500;color:var(--muted)}
+  .field label{font-size:13px;font-weight:500;color:var(--muted)}
   .field input,.field select,.field textarea{
     font-size:13px;font-family:inherit;border-radius:var(--radius-sm);
     border:1px solid var(--border2);background:#fff;color:var(--text);
@@ -69,19 +69,19 @@
 
   /* Multi-select Dropdown */
   .multiselect{position:relative;width:100%}
-  .ms-trigger{width:100%;padding:8px 12px;border:1px solid var(--border2);border-radius:var(--radius-sm);background:#fff;cursor:pointer;font-size:13px;font-family:inherit;color:var(--text);text-align:left;display:flex;align-items:center;gap:6px;line-height:1.4;min-height:36px}
+  .ms-trigger{width:100%;padding:10px 14px;border:1px solid var(--border2);border-radius:var(--radius-sm);background:#fff;cursor:pointer;font-size:14px;font-family:inherit;color:var(--text);text-align:left;display:flex;align-items:center;gap:6px;line-height:1.4;min-height:42px}
   .ms-trigger:hover{border-color:var(--green)}
   .ms-trigger.open{border-color:var(--green);box-shadow:0 0 0 3px rgba(29,158,117,.1)}
   .ms-trigger-text{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .ms-trigger-text.empty{color:var(--muted2)}
-  .ms-arrow{font-size:10px;color:var(--muted);transition:transform .15s;will-change:transform}
+  .ms-arrow{font-size:11px;color:var(--muted);transition:transform .15s;will-change:transform}
   .ms-trigger.open .ms-arrow{transform:rotate(180deg)}
-  .ms-count{background:var(--green);color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;font-weight:600;min-width:18px;text-align:center}
-  .ms-panel{position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1px solid var(--border2);border-radius:var(--radius-sm);max-height:260px;overflow-y:auto;overflow-x:hidden;display:none;z-index:100;box-shadow:0 4px 16px rgba(0,0,0,.08)}
+  .ms-count{background:var(--green);color:#fff;border-radius:10px;padding:2px 8px;font-size:11px;font-weight:600;min-width:20px;text-align:center}
+  .ms-panel{position:absolute;top:calc(100% + 4px);left:0;right:0;background:#fff;border:1px solid var(--border2);border-radius:var(--radius-sm);max-height:280px;overflow-y:auto;overflow-x:hidden;display:none;z-index:100;box-shadow:0 4px 16px rgba(0,0,0,.08)}
   .ms-panel.open{display:block}
-  .ms-option{display:flex;align-items:center;gap:10px;padding:9px 12px;cursor:pointer;font-size:13px;color:var(--text);transition:background .1s;user-select:none;line-height:1.4;width:100%;box-sizing:border-box}
+  .ms-option{display:flex;align-items:center;gap:12px;padding:11px 14px;cursor:pointer;font-size:14px;color:var(--text);transition:background .1s;user-select:none;line-height:1.5;width:100%;box-sizing:border-box}
   .ms-option:hover{background:var(--green-light)}
-  .ms-option input[type=checkbox]{cursor:pointer;accent-color:var(--green);margin:0;flex-shrink:0;width:16px;height:16px}
+  .ms-option input[type=checkbox]{cursor:pointer;accent-color:var(--green);margin:0;flex-shrink:0;width:17px;height:17px}
   .ms-option > span:not(.ms-remove-custom){flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:normal;word-break:break-word}
   .ms-option.selected{background:#F0FAF6;font-weight:500}
   .ms-custom-wrap{padding:8px 12px;border-top:1px solid var(--border);display:flex;gap:6px;background:#F9FAFB}
@@ -1846,10 +1846,9 @@ Tulis modul ajar LENGKAP dengan format Markdown. WAJIB IKUTI struktur ini PERSIS
 
 ## A. IDENTITAS UMUM
 
-Tulis sebagai TABEL Markdown dengan kolom "Aspek" dan "Keterangan". HANYA tampilkan baris-baris berikut (jangan tambahkan baris lain):
-| Aspek | Keterangan |
-|---|---|
+Tulis sebagai TABEL Markdown TANPA baris header. Langsung isi datanya:
 | Nama Penyusun | (nama guru) |
+|---|---|
 | Satuan Pendidikan | (satuan) |
 | Nama Madrasah | (nama madrasah) |
 | Mata Pelajaran | (mapel) |
@@ -2022,20 +2021,27 @@ Tuliskan 5 pertanyaan refleksi profesional dalam bentuk numbered list untuk guru
 
 ## PENUTUP
 
-Format penutup dalam bentuk TABEL Markdown 2 kolom (kosongkan tanda |---|---| header). Gunakan format ini PERSIS:
+Gunakan format teks biasa (BUKAN tabel) agar tidak ada garis kotak yang terlihat. Format PERSIS seperti ini:
 
-Tulis tanggal di kanan: "(kota), (tanggal pengesahan dalam format: 8 Januari 2026)"
+&nbsp;
 
-Lalu tabel tanda tangan:
-|  |  |
-|---|---|
-| Mengetahui, | |
-| Kepala Madrasah | Guru |
-|  |  |
-|  |  |
-|  |  |
-| **(Nama Kepala Madrasah)** | **(Nama Guru)** |
-| NIP. (NIP Kepala Madrasah) | NIP. (NIP Guru) |
+<div style="text-align:right">(kota), (tanggal pengesahan dalam format: 8 Januari 2026)</div>
+
+&nbsp;
+
+Mengetahui, &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Guru Mata Pelajaran,
+
+Kepala Madrasah,
+
+&nbsp;
+
+&nbsp;
+
+&nbsp;
+
+**(Nama Kepala Madrasah)** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **(Nama Guru)**
+
+NIP. (NIP Kepala Madrasah) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; NIP. (NIP Guru)
 
 ═══════════════════════════════
 KETENTUAN PENULISAN (WAJIB)
