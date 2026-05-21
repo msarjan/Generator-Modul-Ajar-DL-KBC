@@ -2,6 +2,9 @@
   "functions": {
     "api/anthropic.js": {
       "maxDuration": 300
+    },
+    "api/key.js": {
+      "maxDuration": 10
     }
   }
 }

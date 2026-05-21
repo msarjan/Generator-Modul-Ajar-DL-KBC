@@ -1598,15 +1598,13 @@ async function suggestKBC(){
   // Jika mapel & topik cukup spesifik, panggil AI untuk konfirmasi
   let saranFinal = saranLokal;
   try {
-    const res = await fetch('/api/anthropic',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({
-        model:'claude-sonnet-4-6',
-        max_tokens:300,
-        messages:[{
-          role:'user',
-          content:`Anda ahli Kurikulum Berbasis Cinta (KBC) madrasah.
+    const apiKey = await getApiKey();
+    const data = await callAnthropic(apiKey,{
+      model:'claude-sonnet-4-6',
+      max_tokens:300,
+      messages:[{
+        role:'user',
+        content:`Anda ahli Kurikulum Berbasis Cinta (KBC) madrasah.
 Guru akan mengajar:
 - Mata Pelajaran: ${document.getElementById('mapel').value||'(belum diisi)'}
 - Topik/Materi: ${document.getElementById('topik').value||'(belum diisi)'}
@@ -1622,10 +1620,8 @@ Lima topik KBC yang tersedia:
 Pilih MAKSIMAL 2 topik KBC yang paling relevan dan natural untuk disisipkan ke pembelajaran ini.
 Jawab HANYA dengan nama topik persis seperti daftar di atas, dipisah koma. Tidak perlu penjelasan.
 Contoh: Cinta Ilmu, Cinta Diri dan Sesama Manusia`
-        }]
-      })
+      }]
     });
-    const data = await res.json();
     const teksAI = data?.content?.[0]?.text?.trim()||'';
     // Parse nama topik dari respons AI
     const valid = Object.keys(KBC_DATA);
@@ -2089,6 +2085,34 @@ function validateBeforeGenerate(){
   return {ok:true};
 }
 
+// ── Ambil API key dari endpoint /api/key (di-cache agar tidak request berulang) ──
+let _cachedApiKey=null;
+async function getApiKey(){
+  if(_cachedApiKey) return _cachedApiKey;
+  const res=await fetch('/api/key');
+  if(!res.ok) throw new Error('Gagal mengambil konfigurasi API. Status: '+res.status);
+  const data=await res.json();
+  if(!data.key) throw new Error(data.error||'API key tidak tersedia.');
+  _cachedApiKey=data.key;
+  return _cachedApiKey;
+}
+
+// ── Panggil Anthropic API langsung dari browser ──
+async function callAnthropic(apiKey, payload){
+  const res=await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'x-api-key':apiKey,
+      'anthropic-version':'2023-06-01',
+      'anthropic-beta':'files-api-2025-04-14',
+      'anthropic-dangerous-direct-browser-access':'true'
+    },
+    body:JSON.stringify(payload)
+  });
+  return res.json();
+}
+
 // ── Generate ──
 let lastGeneratedMarkdown='';
 async function generateModul(){
@@ -2122,32 +2146,28 @@ async function generateModul(){
   box.scrollIntoView({behavior:'smooth',block:'start'});
 
   try {
-    const res=await fetch('/api/anthropic',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({
-        model:'claude-sonnet-4-6',
-        max_tokens:64000,
-        messages:[{
-          role:'user',
-          content:[
-            {
-              type:'document',
-              source:{
-                type:'base64',
-                media_type:'application/pdf',
-                data:bahanAjarBase64
-              }
-            },
-            {
-              type:'text',
-              text:buildPrompt()
+    const apiKey=await getApiKey();
+    const data=await callAnthropic(apiKey,{
+      model:'claude-sonnet-4-6',
+      max_tokens:64000,
+      messages:[{
+        role:'user',
+        content:[
+          {
+            type:'document',
+            source:{
+              type:'base64',
+              media_type:'application/pdf',
+              data:bahanAjarBase64
             }
-          ]
-        }]
-      })
+          },
+          {
+            type:'text',
+            text:buildPrompt()
+          }
+        ]
+      }]
     });
-    const data=await res.json();
     if(data.error){
       box.className='result-box';
       box.innerHTML='<div style="padding:20px;color:#991B1B;background:#FEE2E2;border-radius:8px"><strong>⚠️ Error dari AI:</strong><br>'+(data.error.message||JSON.stringify(data.error))+'</div>';
