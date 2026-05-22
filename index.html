@@ -232,7 +232,13 @@
   .btn-reset{padding:6px 12px;background:transparent;border:1px solid var(--border2);border-radius:var(--radius-sm);font-size:12px;color:var(--muted);cursor:pointer;font-family:inherit;transition:all .15s;display:flex;align-items:center;gap:4px}
   .btn-reset:hover{background:#FEF2F2;border-color:#FCA5A5;color:#DC2626}
 
-  /* ── Auto-save indicator ── */
+  /* ── Step completion indicator ── */
+  .step-tab .step-check{display:none;font-size:10px;margin-left:2px;color:var(--green)}
+  .step-tab.done .step-check{display:inline}
+  /* ── Generate button conditional ── */
+  #gen-btn{transition:all .2s}
+  #gen-btn.ready{background:var(--green);box-shadow:0 2px 8px rgba(29,158,117,.35)}
+  #gen-btn.not-ready{background:#9CA3AF;cursor:default}
   .autosave-dot{width:6px;height:6px;border-radius:50%;background:#9CA3AF;display:inline-block;margin-left:6px;vertical-align:middle;transition:background .3s}
   .autosave-dot.saved{background:#10B981}
 
@@ -340,11 +346,11 @@
 
   <div class="progress-wrap">
     <div class="steps-row">
-      <div class="step-tab active" id="st1" onclick="goStep(1)"><span class="sn">Langkah 1</span>Identitas</div>
-      <div class="step-tab" id="st2" onclick="goStep(2)"><span class="sn">Langkah 2</span>Identifikasi Murid</div>
-      <div class="step-tab" id="st3" onclick="goStep(3)"><span class="sn">Langkah 3</span>Desain Pembelajaran</div>
-      <div class="step-tab" id="st4" onclick="goStep(4)"><span class="sn">Langkah 4</span>Kurikulum Cinta</div>
-      <div class="step-tab" id="st5" onclick="goStep(5)"><span class="sn">Langkah 5</span>Generate</div>
+      <div class="step-tab active" id="st1" onclick="goStep(1)"><span class="sn">Langkah 1</span>Identitas<span class="step-check">✓</span></div>
+      <div class="step-tab" id="st2" onclick="goStep(2)"><span class="sn">Langkah 2</span>Identifikasi Murid<span class="step-check">✓</span></div>
+      <div class="step-tab" id="st3" onclick="goStep(3)"><span class="sn">Langkah 3</span>Desain Pembelajaran<span class="step-check">✓</span></div>
+      <div class="step-tab" id="st4" onclick="goStep(4)"><span class="sn">Langkah 4</span>Kurikulum Cinta<span class="step-check">✓</span></div>
+      <div class="step-tab" id="st5" onclick="goStep(5)"><span class="sn">Langkah 5</span>Generate<span class="step-check">✓</span></div>
     </div>
     <div class="prog-bar-wrap"><div class="prog-bar" id="pbar" style="width:20%"></div></div>
   </div>
@@ -625,8 +631,15 @@
         </div>
       </div>
       <div class="div"></div>
-      <div class="sec-label">Dukungan Pembelajaran <span class="tag tag-ai">🤖 Dibantu AI</span></div>
-      <div class="grid3">
+
+      <!-- Collapsible: Dukungan Pembelajaran -->
+      <div id="dukungan-header" onclick="toggleDukungan()" style="cursor:pointer;display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:var(--green-light);border-radius:var(--radius-sm);margin-bottom:4px;user-select:none">
+        <span style="font-size:12px;font-weight:600;color:var(--green-dark)">⚙️ Dukungan Pembelajaran <span class="tag tag-ai" style="margin-left:6px">🤖 Dibantu AI</span></span>
+        <span id="dukungan-arrow" style="font-size:11px;color:var(--green-dark);transition:transform .2s">▼</span>
+      </div>
+      <div id="dukungan-body" style="display:none;padding:14px;border:1px solid var(--border);border-radius:0 0 var(--radius-sm) var(--radius-sm);margin-bottom:14px">
+        <p style="font-size:11px;color:var(--muted);margin-bottom:10px">Opsional — bila tidak diisi, AI akan tetap generate modul tanpa bagian ini.</p>
+        <div class="grid3">
         <div>
           <label style="font-size:11px;font-weight:600;color:var(--muted);display:block;margin-bottom:6px">Kemitraan</label>
           <div class="multiselect">
@@ -684,6 +697,7 @@
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
     <div class="btn-row">
@@ -1031,6 +1045,8 @@ function saveFormState(){
     document.title = topikVal
       ? `${topikVal} — Generator Modul Ajar`
       : 'Generator Modul Ajar Madrasah';
+    // Update step completion
+    checkStepCompletion();
     // Visual indicator
     const dot=document.getElementById('autosave-dot');
     if(dot){
@@ -1281,6 +1297,8 @@ function handleUpload(input){
       : `<span style="color:#92400E;font-size:11px;display:block;margin-top:2px">⚠️ PDF terdeteksi sebagai scan — hasil mungkin kurang optimal</span>`;
     document.getElementById('upload-filename').innerHTML =
       `<span style="font-weight:600">${file.name}</span> · ${ukuran} MB${modeTeks}`;
+    // Update step completion setelah upload
+    checkStepCompletion();
   };
   reader.readAsDataURL(file);
 }
@@ -1598,6 +1616,8 @@ if(!checkInviteCode()){
 }
 // Update badge kuota
 updateKuotaBadge();
+// Cek kelengkapan step awal
+checkStepCompletion();
 
 // ── Preview lengkap (TIDAK panggil AI, hanya tampilan) ──
 function updatePreview(){
@@ -2198,12 +2218,22 @@ PENTING: Jangan tulis heading "PENUTUP" atau "## PENUTUP" — langsung tulis HTM
 
 Tulis penutup dengan format HTML berikut PERSIS — hanya ganti data dalam tanda kurung, jangan ubah struktur HTML-nya:
 
-<div style="text-align:right;margin-bottom:20px">(kota), (tanggal pengesahan dalam format: 8 Januari 2026)</div>
-
 <table style="width:100%;border-collapse:collapse;border:none;margin-top:8px">
 <tr>
-<td style="border:none;width:50%;vertical-align:top;padding:0">Mengetahui,<br>Kepala Madrasah,<br><br><br><br><strong>(Nama Kepala Madrasah)</strong><br>NIP. (NIP Kepala Madrasah)</td>
-<td style="border:none;width:50%;vertical-align:top;padding:0;text-align:left">Guru Mata Pelajaran,<br><br><br><br><br><strong>(Nama Guru)</strong><br>NIP. (NIP Guru)</td>
+<td style="border:none;width:35%;padding:0">&nbsp;</td>
+<td style="border:none;width:65%;padding:0;text-align:right">(kota), (tanggal pengesahan dalam format: 8 Januari 2026)</td>
+</tr>
+<tr>
+<td style="border:none;padding:0;padding-top:12px">Mengetahui,<br>Kepala Madrasah,</td>
+<td style="border:none;padding:0;padding-top:12px">Guru Mata Pelajaran,</td>
+</tr>
+<tr>
+<td style="border:none;padding:0;height:60px">&nbsp;</td>
+<td style="border:none;padding:0;height:60px">&nbsp;</td>
+</tr>
+<tr>
+<td style="border:none;padding:0"><strong>(Nama Kepala Madrasah)</strong><br>NIP. (NIP Kepala Madrasah)</td>
+<td style="border:none;padding:0"><strong>(Nama Guru)</strong><br>NIP. (NIP Guru)</td>
 </tr>
 </table>
 
@@ -2228,6 +2258,46 @@ function formatTanggalIndo(dateStr){
 }
 
 // ── Validasi sebelum generate ──
+function checkStepCompletion(){
+  // Step 1: bahan ajar + nama + topik + mode sintaks wajib
+  const s1 = !!(bahanAjarBase64 &&
+    document.getElementById('nama')?.value.trim() &&
+    document.getElementById('topik')?.value.trim() &&
+    modeSintaks);
+  // Step 2: tidak ada field wajib — selalu dianggap selesai
+  const s2 = true;
+  // Step 3: CP wajib
+  const s3 = !!(document.getElementById('cp')?.value.trim());
+  // Step 4: tidak ada field wajib — selalu dianggap selesai
+  const s4 = true;
+
+  // Update tab indicator
+  ['st1','st2','st3','st4'].forEach((id,i) => {
+    const done = [s1,s2,s3,s4][i];
+    const el = document.getElementById(id);
+    if(el){
+      el.classList.toggle('done', done);
+    }
+  });
+
+  // Update tombol generate
+  const btn = document.getElementById('gen-btn');
+  if(btn){
+    const allReady = s1 && s3;
+    btn.classList.toggle('ready', allReady);
+    btn.classList.toggle('not-ready', !allReady);
+    btn.title = allReady ? 'Siap generate!' : 'Lengkapi field wajib terlebih dahulu (bahan ajar, nama, topik, mode sintaks, CP)';
+  }
+}
+
+function toggleDukungan(){
+  const body  = document.getElementById('dukungan-body');
+  const arrow = document.getElementById('dukungan-arrow');
+  const open  = body.style.display === 'block';
+  body.style.display  = open ? 'none' : 'block';
+  arrow.style.transform = open ? 'rotate(0deg)' : 'rotate(180deg)';
+}
+
 function validateBeforeGenerate(){
   // 1. Bahan ajar wajib
   if(!bahanAjarBase64){
