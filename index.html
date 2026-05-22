@@ -160,7 +160,8 @@
   .result-box strong{font-weight:600;color:#111}
   .result-box table{border-collapse:collapse;width:100%;margin:10px 0 14px;font-size:12.5px}
   .result-box table th,.result-box table td{border:1px solid #ccc;padding:7px 10px;text-align:left;vertical-align:top}
-  .result-box table th{background:#f8f9fa;font-weight:600;color:#333}
+  .result-box table th{background:none;font-weight:500;color:var(--text)}
+  .result-box table td:first-child{font-weight:600;color:var(--text)}
   .result-box hr{border:none;border-top:1px solid var(--border);margin:24px 0}
   .result-box .penutup-wrap{margin-top:32px}
   .spinner{width:32px;height:32px;border:3px solid var(--green-light);border-top-color:var(--green);border-radius:50%;animation:spin .7s linear infinite}
@@ -1025,6 +1026,11 @@ function saveFormState(){
       jpData:JSON.parse(JSON.stringify(jpData))
     };
     localStorage.setItem(SAVE_KEY,JSON.stringify(state));
+    // Update title tab browser
+    const topikVal = document.getElementById('topik')?.value?.trim();
+    document.title = topikVal
+      ? `${topikVal} — Generator Modul Ajar`
+      : 'Generator Modul Ajar Madrasah';
     // Visual indicator
     const dot=document.getElementById('autosave-dot');
     if(dot){
@@ -2197,7 +2203,7 @@ Tulis penutup dengan format HTML berikut PERSIS — hanya ganti data dalam tanda
 <table style="width:100%;border-collapse:collapse;border:none;margin-top:8px">
 <tr>
 <td style="border:none;width:50%;vertical-align:top;padding:0">Mengetahui,<br>Kepala Madrasah,<br><br><br><br><strong>(Nama Kepala Madrasah)</strong><br>NIP. (NIP Kepala Madrasah)</td>
-<td style="border:none;width:50%;vertical-align:top;padding:0;text-align:right">Guru Mata Pelajaran,<br><br><br><br><br><strong>(Nama Guru)</strong><br>NIP. (NIP Guru)</td>
+<td style="border:none;width:50%;vertical-align:top;padding:0;text-align:left">Guru Mata Pelajaran,<br><br><br><br><br><strong>(Nama Guru)</strong><br>NIP. (NIP Guru)</td>
 </tr>
 </table>
 
@@ -2718,7 +2724,8 @@ function openInGoogleDocs(){
   /* Tabel konten — dengan border */
   table{border-collapse:collapse;width:100%;margin:8pt 0 12pt}
   th,td{border:1pt solid #ccc;padding:6pt 9pt;text-align:left;vertical-align:top;font-size:11pt}
-  th{background:#f5f5f5;font-weight:700}
+  th{background:none;font-weight:600}
+  td:first-child{font-weight:600}
   /* Tabel penutup — tanpa border */
   table[style*="border:none"],table[style*="border:none"] td,table[style*="border:none"] th{border:none!important;background:none!important}
   hr{border:none;border-top:1pt solid ${cBorder};margin:18pt 0}
@@ -2767,6 +2774,7 @@ function downloadPDF(){
     return;
   }
 
+  const namaGuru = document.getElementById('nama').value.trim() || 'Guru';
   const rs = getComputedStyle(document.documentElement);
   const cGreen     = rs.getPropertyValue('--green').trim()     || '#1D9E75';
   const cGreenDark = rs.getPropertyValue('--green-dark').trim()|| '#0F6E56';
@@ -2807,7 +2815,8 @@ function downloadPDF(){
   table{border-collapse:collapse;width:100%;margin:8pt 0 14pt;
         page-break-inside:avoid;font-size:11pt}
   th,td{border:1pt solid #ccc;padding:6pt 9pt;text-align:left;vertical-align:top}
-  th{background:#f0f0f0;font-weight:700;color:#333}
+  th{background:none;font-weight:600;color:#333}
+  td:first-child{font-weight:600}
   hr{border:none;border-top:1pt solid ${cBorder};margin:20pt 0;page-break-after:avoid}
   div[style*="text-align:right"],div[style*="text-align: right"]{
     text-align:right!important}
@@ -2822,6 +2831,19 @@ function downloadPDF(){
     table,figure{page-break-inside:avoid}
     p,li{orphans:3;widows:3}
     .no-print{display:none!important}
+  }
+  @page{
+    margin:1.5cm 2cm 2.5cm 2cm;
+    @bottom-left{
+      content:"Modul Ajar — ${namaGuru}";
+      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;
+      font-size:9pt;color:#888;
+    }
+    @bottom-right{
+      content:"Halaman " counter(page);
+      font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;
+      font-size:9pt;color:#888;
+    }
   }
 </style>
 </head>
