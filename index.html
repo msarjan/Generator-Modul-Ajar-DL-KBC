@@ -2188,27 +2188,16 @@ Tuliskan 5 pertanyaan refleksi profesional dalam bentuk numbered list untuk guru
 
 ## PENUTUP
 
-Gunakan format teks biasa (BUKAN tabel) agar tidak ada garis kotak. Format PERSIS seperti ini — gunakan spasi panjang untuk memisahkan kolom kiri dan kanan:
+Tulis penutup dengan format HTML berikut PERSIS — hanya ganti data dalam tanda kurung, jangan ubah struktur HTML-nya:
 
-&nbsp;
+<div style="text-align:right;margin-bottom:20px">(kota), (tanggal pengesahan dalam format: 8 Januari 2026)</div>
 
-<div style="text-align:right">(kota), (tanggal pengesahan dalam format: 8 Januari 2026)</div>
-
-&nbsp;
-
-Mengetahui,
-
-Kepala Madrasah, &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Guru Mata Pelajaran,
-
-&nbsp;
-
-&nbsp;
-
-&nbsp;
-
-**(Nama Kepala Madrasah)** &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; **(Nama Guru)**
-
-NIP. (NIP Kepala Madrasah) &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; NIP. (NIP Guru)
+<table style="width:100%;border-collapse:collapse;border:none;margin-top:8px">
+<tr>
+<td style="border:none;width:50%;vertical-align:top;padding:0">Mengetahui,<br>Kepala Madrasah,<br><br><br><br><strong>(Nama Kepala Madrasah)</strong><br>NIP. (NIP Kepala Madrasah)</td>
+<td style="border:none;width:50%;vertical-align:top;padding:0;text-align:right">Guru Mata Pelajaran,<br><br><br><br><br><strong>(Nama Guru)</strong><br>NIP. (NIP Guru)</td>
+</tr>
+</table>
 
 ═══════════════════════════════
 KETENTUAN PENULISAN (WAJIB)
@@ -2695,8 +2684,9 @@ function openPreviewWindow(autoAction){
 // ── Download as Word ──
 // ── Buka di Google Docs ──
 function openInGoogleDocs(){
-  const md = lastGeneratedMarkdown || document.getElementById('result-box').innerText;
-  if(!md || md.trim()===''){
+  const resultBox = document.getElementById('result-box');
+  const html = resultBox ? resultBox.innerHTML : '';
+  if(!html || html.trim()===''){
     showToast('Belum ada hasil modul untuk dibuka.');
     return;
   }
@@ -2708,11 +2698,9 @@ function openInGoogleDocs(){
   const cBorder    = rs.getPropertyValue('--border').trim()    || '#E5E7EB';
   const cMuted     = rs.getPropertyValue('--muted').trim()     || '#6B7280';
 
-  let html = '';
-  try { html = marked.parse(md); } catch(e){ html = md.replace(/\n/g,'<br>'); }
-
   const fullHtml = `<!DOCTYPE html>
 <html lang="id"><head><meta charset="UTF-8">
+<title>Modul Ajar</title>
 <style>
   body{font-family:Arial,sans-serif;font-size:12pt;line-height:1.7;color:#222;margin:2cm 2.5cm;background:#fff}
   h1{font-size:18pt;text-align:center;font-weight:700;color:#111;margin-bottom:6pt}
@@ -2725,11 +2713,14 @@ function openInGoogleDocs(){
   li{margin-bottom:3pt;line-height:1.65}
   strong{font-weight:700}
   em{font-style:italic}
+  /* Tabel konten — dengan border */
   table{border-collapse:collapse;width:100%;margin:8pt 0 12pt}
   th,td{border:1pt solid #ccc;padding:6pt 9pt;text-align:left;vertical-align:top;font-size:11pt}
   th{background:#f5f5f5;font-weight:700}
+  /* Tabel penutup — tanpa border */
+  table[style*="border:none"],table[style*="border:none"] td,table[style*="border:none"] th{border:none!important;background:none!important}
   hr{border:none;border-top:1pt solid ${cBorder};margin:18pt 0}
-  div[style*="text-align:right"],div[style*="text-align: right"]{text-align:right!important}
+  div[style*="text-align:right"]{text-align:right!important}
 </style></head>
 <body>${html}</body></html>`;
 
@@ -2818,7 +2809,11 @@ function downloadPDF(){
   hr{border:none;border-top:1pt solid ${cBorder};margin:20pt 0;page-break-after:avoid}
   div[style*="text-align:right"],div[style*="text-align: right"]{
     text-align:right!important}
-  .no-print{display:none}
+  div[style*="display:flex"]{display:flex!important}
+  div[style*="justify-content:space-between"]{justify-content:space-between!important}
+  /* Tabel penutup tanpa garis */
+  table[style*="border:none"] td{border:none!important}
+  table[style*="border:none"]{border:none!important}
   @media print{
     body{padding:.8cm 1.2cm}
     h2,h3{page-break-after:avoid}
