@@ -2687,78 +2687,83 @@ function showGoogleDocsModal(htmlUrl){
 
 // ── Download as PDF ──
 function downloadPDF(){
-  const content = document.getElementById('result-box').innerHTML;
+  const resultBox = document.getElementById('result-box');
+  const content   = resultBox ? resultBox.innerHTML : '';
   if(!content || content.includes('class="spinner"')){
     showToast('Modul belum digenerate. Klik tombol Generate terlebih dahulu.','warning');
     return;
   }
 
-  const topik = document.getElementById('topik').value || 'Modul-Ajar';
-  const safeName = topik.replace(/[^a-zA-Z0-9\s]/g,'').replace(/\s+/g,'-').substring(0,50) || 'Modul-Ajar';
+  const topik    = document.getElementById('topik').value || 'Modul-Ajar';
+  const safeName = topik.replace(/[^a-zA-Z0-9\s]/g,'').replace(/\s+/g,'-').substring(0,50)||'Modul-Ajar';
 
-  // Buat container sementara dengan styling print-ready
-  const container = document.createElement('div');
-  container.innerHTML = `
-    <style>
-      *{box-sizing:border-box;-webkit-print-color-adjust:exact}
-      body{font-family:'Times New Roman',serif;font-size:12pt;line-height:1.6;color:#000}
-      h1{font-size:16pt;text-align:center;font-weight:bold;margin:0 0 4pt}
-      h2{font-size:13pt;font-weight:bold;text-transform:uppercase;border-bottom:1pt solid #000;padding-bottom:3pt;margin:14pt 0 8pt}
-      h3{font-size:12pt;font-weight:bold;margin:12pt 0 6pt}
-      h4{font-size:11pt;font-weight:bold;margin:10pt 0 4pt}
-      p{margin:0 0 6pt;orphans:3;widows:3}
-      ul,ol{margin:4pt 0 8pt 24pt;padding:0}
-      li{margin-bottom:3pt;line-height:1.55}
-      table{border-collapse:collapse;width:100%;margin:6pt 0 10pt;page-break-inside:avoid}
-      th,td{border:1pt solid #333;padding:5pt 7pt;text-align:left;vertical-align:top;font-size:10.5pt;word-break:break-word}
-      th{background:#E8F5E9;font-weight:bold}
-      strong{font-weight:bold}
-      em{font-style:italic}
-      hr{border:none;border-top:1pt solid #999;margin:12pt 0}
-      /* Penutup tanda tangan */
-      div[style*="text-align:right"],div[style*="text-align: right"]{text-align:right !important}
-    </style>
-    <div style="padding:0">${content}</div>
-  `;
-  container.style.cssText = 'position:absolute;left:-9999px;top:0;width:794px;';
-  document.body.appendChild(container);
+  // Buat iframe tersembunyi untuk render konten
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:794px;height:1123px;opacity:0;pointer-events:none;border:none;z-index:-1';
+  document.body.appendChild(iframe);
 
-  // Tampilkan loading
+  const doc = iframe.contentDocument || iframe.contentWindow.document;
+  doc.open();
+  doc.write(`<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<style>
+  *{box-sizing:border-box}
+  body{font-family:'Times New Roman',serif;font-size:12pt;line-height:1.6;color:#000;margin:0;padding:20px 24px;background:#fff;width:794px}
+  h1{font-size:16pt;text-align:center;font-weight:bold;margin:0 0 4pt}
+  h2{font-size:13pt;font-weight:bold;text-transform:uppercase;border-bottom:1.5pt solid #000;padding-bottom:3pt;margin:14pt 0 8pt}
+  h3{font-size:12pt;font-weight:bold;margin:12pt 0 6pt}
+  h4{font-size:11pt;font-weight:bold;margin:10pt 0 4pt}
+  p{margin:0 0 6pt}
+  ul,ol{margin:4pt 0 8pt 24pt;padding:0}
+  li{margin-bottom:3pt;line-height:1.55}
+  table{border-collapse:collapse;width:100%;margin:6pt 0 10pt}
+  th,td{border:1pt solid #333;padding:5pt 7pt;text-align:left;vertical-align:top;font-size:10.5pt;word-break:break-word}
+  th{background:#E8F5E9;font-weight:bold}
+  strong{font-weight:bold}
+  em{font-style:italic}
+  hr{border:none;border-top:1pt solid #999;margin:12pt 0}
+  div[style*="text-align:right"]{text-align:right!important}
+  div[style*="text-align: right"]{text-align:right!important}
+</style>
+</head>
+<body>${content}</body>
+</html>`);
+  doc.close();
+
+  // Tampilkan loading di tombol
   const btn = document.querySelector('.copy-btn.primary');
-  const originalText = btn ? btn.innerHTML : '';
-  if(btn){ btn.innerHTML = '⏳ Menyiapkan PDF…'; btn.disabled = true; }
-  showToast('Sedang menyiapkan PDF, mohon tunggu…','info');
+  const oriTxt = btn ? btn.innerHTML : '';
+  if(btn){ btn.innerHTML='⏳ Menyiapkan PDF…'; btn.disabled=true; }
+  showToast('Sedang menyiapkan PDF, mohon tunggu…');
 
-  const opt = {
-    margin:       [15, 15, 15, 15], // mm: atas, kanan, bawah, kiri
-    filename:     `${safeName}.pdf`,
-    image:        { type: 'jpeg', quality: 0.98 },
-    html2canvas:  {
-      scale: 2,
-      useCORS: true,
-      letterRendering: true,
-      scrollX: 0,
-      scrollY: 0
-    },
-    jsPDF: {
-      unit: 'mm',
-      format: 'a4',
-      orientation: 'portrait',
-      compress: true
-    },
-    pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
-  };
+  // Tunggu iframe selesai render baru ambil PDF
+  setTimeout(() => {
+    const element = iframe.contentDocument.body;
+    const opt = {
+      margin:      [12, 12, 12, 12],
+      filename:    `${safeName}.pdf`,
+      image:       { type:'jpeg', quality:0.97 },
+      html2canvas: { scale:2, useCORS:true, scrollX:0, scrollY:0,
+                     windowWidth:794, backgroundColor:'#ffffff' },
+      jsPDF:       { unit:'mm', format:'a4', orientation:'portrait' },
+      pagebreak:   { mode:['css','legacy'] }
+    };
 
-  html2pdf().set(opt).from(container).save().then(() => {
-    document.body.removeChild(container);
-    if(btn){ btn.innerHTML = originalText; btn.disabled = false; }
-    showToast('✅ PDF berhasil didownload!','success');
-  }).catch(err => {
-    document.body.removeChild(container);
-    if(btn){ btn.innerHTML = originalText; btn.disabled = false; }
-    showToast('Gagal membuat PDF. Coba lagi.','error');
-    console.error(err);
-  });
+    html2pdf().set(opt).from(element).save()
+      .then(()=>{
+        document.body.removeChild(iframe);
+        if(btn){ btn.innerHTML=oriTxt; btn.disabled=false; }
+        showToast('✅ PDF berhasil didownload!');
+      })
+      .catch(err=>{
+        document.body.removeChild(iframe);
+        if(btn){ btn.innerHTML=oriTxt; btn.disabled=false; }
+        showToast('Gagal membuat PDF. Coba lagi.');
+        console.error(err);
+      });
+  }, 800);
 }
 </script>
 
