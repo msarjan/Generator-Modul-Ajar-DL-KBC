@@ -2286,11 +2286,88 @@ async function callAnthropic(apiKey, payload){
 
 // ── Generate ──
 let lastGeneratedMarkdown='';
+function showKuotaHabisBanner(){
+  // Hapus banner lama jika ada
+  const old = document.getElementById('kuota-habis-banner');
+  if(old) old.remove();
+
+  // Tampilkan result section agar banner terlihat
+  const resultSection = document.getElementById('result-section');
+  resultSection.style.display = 'block';
+
+  const resultBox = document.getElementById('result-box');
+  resultBox.className = 'result-box';
+  resultBox.innerHTML = `
+    <div id="kuota-habis-banner" style="
+      background:#FEF2F2;
+      border:2px solid #FCA5A5;
+      border-radius:10px;
+      padding:24px 20px;
+      text-align:center;
+    ">
+      <div style="font-size:36px;margin-bottom:12px">🔒</div>
+      <h3 style="font-size:16px;font-weight:700;color:#991B1B;margin:0 0 8px">
+        Kuota Generate Anda Sudah Habis
+      </h3>
+      <p style="font-size:13px;color:#7F1D1D;margin:0 0 20px;line-height:1.6">
+        Anda telah menggunakan semua kuota generate untuk kode beta ini.<br>
+        Masukkan kode invite baru untuk melanjutkan, atau hubungi pengembang untuk mendapatkan kode tambahan.
+      </p>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+        <button onclick="resetKodeInvite()" style="
+          padding:10px 20px;
+          background:#DC2626;
+          color:#fff;
+          border:none;
+          border-radius:8px;
+          font-size:13px;
+          font-weight:700;
+          cursor:pointer;
+          font-family:inherit;
+          display:flex;align-items:center;gap:6px
+        ">🔑 Masukkan Kode Baru</button>
+        <a href="https://instagram.com/sarjan.eth" target="_blank" rel="noopener" style="
+          padding:10px 20px;
+          background:#fff;
+          color:#DC2626;
+          border:2px solid #FCA5A5;
+          border-radius:8px;
+          font-size:13px;
+          font-weight:600;
+          cursor:pointer;
+          font-family:inherit;
+          text-decoration:none;
+          display:flex;align-items:center;gap:6px
+        ">📸 DM @sarjan.eth</a>
+      </div>
+    </div>
+  `;
+
+  // Scroll ke banner
+  resultBox.scrollIntoView({behavior:'smooth', block:'center'});
+}
+
+function resetKodeInvite(){
+  // Hapus kode dan kuota dari localStorage
+  localStorage.removeItem(INVITE_KEY);
+  localStorage.removeItem(KUOTA_KEY);
+  // Sembunyikan result section
+  document.getElementById('result-section').style.display = 'none';
+  // Tampilkan layar kode invite
+  document.getElementById('invite-overlay').style.display = 'flex';
+  // Reset input kode
+  const input = document.getElementById('invite-input');
+  if(input) input.value = '';
+  const err = document.getElementById('invite-error');
+  if(err) err.textContent = '';
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
 async function generateModul(){
   // Cek kuota terlebih dahulu
   const sisa = getKuotaSisa();
   if(sisa <= 0){
-    showToast('Kuota generate Anda sudah habis (0 modul tersisa). Hubungi @sarjan.eth untuk info lebih lanjut.');
+    showKuotaHabisBanner();
     return;
   }
 
