@@ -250,6 +250,8 @@
 <script defer src="/_vercel/insights/script.js"></script>
 <!-- Vercel Speed Insights -->
 <script defer src="/_vercel/speed-insights/script.js"></script>
+<!-- PDF.js untuk ekstrak teks dari PDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 </head>
 <body>
 
@@ -1188,9 +1190,42 @@ function attachIdentitySaver(){
 }
 
 // ── Upload bahan ajar ──
-let bahanAjarBase64=null;
-let bahanAjarFilename=null;
-let bahanAjarSize=0;
+let bahanAjarBase64   = null; // fallback jika PDF scan/gambar
+let bahanAjarTeks     = null; // hasil ekstrak teks (hemat token)
+let bahanAjarFilename = null;
+let bahanAjarSize     = 0;
+let bahanAjarIsText   = false;
+
+// Inisialisasi PDF.js worker
+if(typeof pdfjsLib !== 'undefined'){
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
+async function ekstrakTeksPDF(base64Data){
+  try {
+    if(typeof pdfjsLib === 'undefined') return null;
+    const binaryStr = atob(base64Data);
+    const bytes     = new Uint8Array(binaryStr.length);
+    for(let i=0;i<binaryStr.length;i++) bytes[i]=binaryStr.charCodeAt(i);
+    const pdf       = await pdfjsLib.getDocument({data: bytes}).promise;
+    const totalHal  = pdf.numPages;
+    let teksTotal   = '';
+    for(let i=1;i<=totalHal;i++){
+      const hal      = await pdf.getPage(i);
+      const content  = await hal.getTextContent();
+      const teksPer  = content.items.map(item=>item.str).join(' ');
+      teksTotal     += `\n--- Halaman ${i} ---\n${teksPer}`;
+    }
+    // Jika teks yang diekstrak sangat pendek, kemungkinan PDF scan
+    const teksKata = teksTotal.trim().split(/\s+/).filter(w=>w.length>1).length;
+    if(teksKata < 50) return null;
+    return teksTotal.trim();
+  } catch(e){
+    return null;
+  }
+}
+
 function handleUpload(input){
   const file=input.files[0];
   if(!file) return;
@@ -1204,23 +1239,53 @@ function handleUpload(input){
     input.value='';
     return;
   }
+
+  // Tampilkan status loading sementara
+  const zone = document.getElementById('upload-zone');
+  zone.innerHTML = `<div style="font-size:13px;color:var(--muted)">⏳ Membaca bahan ajar…</div>`;
+
   const reader=new FileReader();
-  reader.onload=(e)=>{
-    bahanAjarBase64=e.target.result.split(',')[1];
-    bahanAjarFilename=file.name;
-    bahanAjarSize=file.size;
-    document.getElementById('upload-zone').style.display='none';
+  reader.onload=async (e)=>{
+    const base64 = e.target.result.split(',')[1];
+    bahanAjarBase64   = base64;
+    bahanAjarFilename = file.name;
+    bahanAjarSize     = file.size;
+
+    // Ekstrak teks dari PDF
+    const teks = await ekstrakTeksPDF(base64);
+    if(teks){
+      bahanAjarTeks   = teks;
+      bahanAjarIsText = true;
+    } else {
+      bahanAjarTeks   = null;
+      bahanAjarIsText = false;
+    }
+
+    // Tampilkan preview
+    zone.style.display='none';
     const prev=document.getElementById('upload-preview');
     prev.style.display='flex';
-    document.getElementById('upload-filename').textContent=`${file.name} · ${(file.size/1024/1024).toFixed(2)} MB`;
+    const ukuran = (file.size/1024/1024).toFixed(2);
+    const modeTeks = bahanAjarIsText
+      ? `<span style="color:var(--green-dark);font-size:11px;display:block;margin-top:2px">✅ Teks berhasil diekstrak — penggunaan token lebih hemat</span>`
+      : `<span style="color:#92400E;font-size:11px;display:block;margin-top:2px">⚠️ PDF terdeteksi sebagai scan — hasil mungkin kurang optimal</span>`;
+    document.getElementById('upload-filename').innerHTML =
+      `<span style="font-weight:600">${file.name}</span> · ${ukuran} MB${modeTeks}`;
   };
   reader.readAsDataURL(file);
 }
 function removeUpload(){
-  bahanAjarBase64=null;
-  bahanAjarFilename=null;
-  bahanAjarSize=0;
-  document.getElementById('upload-zone').style.display='';
+  bahanAjarBase64   = null;
+  bahanAjarTeks     = null;
+  bahanAjarFilename = null;
+  bahanAjarSize     = 0;
+  bahanAjarIsText   = false;
+  const zone = document.getElementById('upload-zone');
+  zone.style.display='';
+  zone.innerHTML=`
+    <div style="font-size:28px;margin-bottom:6px">📄</div>
+    <div style="font-size:13px;color:var(--text);font-weight:600">Klik untuk pilih file PDF</div>
+    <div style="font-size:11px;color:var(--muted);margin-top:4px">Maksimal 20 MB · Format PDF</div>`;
   document.getElementById('upload-preview').style.display='none';
   document.getElementById('bahan-ajar-file').value='';
 }
@@ -2258,25 +2323,47 @@ async function generateModul(){
 
   try {
     const apiKey=await getApiKey();
+
+    // Gunakan teks yang diekstrak jika tersedia (jauh lebih hemat token)
+    // Fallback ke base64 PDF jika PDF scan/gambar
+    let contentPayload;
+    if(bahanAjarIsText && bahanAjarTeks){
+      // Mode teks: kirim sebagai text biasa — ~80% lebih hemat token
+      contentPayload = [
+        {
+          type: 'text',
+          text: `BAHAN AJAR (diekstrak dari PDF: ${bahanAjarFilename}):\n\n${bahanAjarTeks}\n\n---\n\n${buildPrompt()}`
+        }
+      ];
+    } else if(bahanAjarBase64){
+      // Mode fallback: kirim PDF sebagai base64 (PDF scan/gambar)
+      contentPayload = [
+        {
+          type: 'document',
+          source: {
+            type: 'base64',
+            media_type: 'application/pdf',
+            data: bahanAjarBase64
+          }
+        },
+        {
+          type: 'text',
+          text: buildPrompt()
+        }
+      ];
+    } else {
+      // Tidak ada bahan ajar
+      contentPayload = [
+        { type: 'text', text: buildPrompt() }
+      ];
+    }
+
     const data=await callAnthropic(apiKey,{
       model:'claude-sonnet-4-6',
       max_tokens:64000,
       messages:[{
         role:'user',
-        content:[
-          {
-            type:'document',
-            source:{
-              type:'base64',
-              media_type:'application/pdf',
-              data:bahanAjarBase64
-            }
-          },
-          {
-            type:'text',
-            text:buildPrompt()
-          }
-        ]
+        content: contentPayload
       }]
     });
     if(data.error){
