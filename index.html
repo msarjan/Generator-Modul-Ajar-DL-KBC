@@ -3018,40 +3018,38 @@ function downloadWord(){
   if(btn){ btn.textContent='⏳ Menyiapkan...'; btn.disabled=true; }
 
   try {
+    // Ambil HTML dari result-box yang sudah dirender
     const resultBox = document.getElementById('result-box');
-    let htmlContent = resultBox.innerHTML;
+
+    // Buat salinan DOM untuk dimanipulasi tanpa merusak tampilan asli
+    const clone = resultBox.cloneNode(true);
+
+    // ── Fix 1: Hapus <li> kosong (hanya whitespace/&nbsp;) ──
+    clone.querySelectorAll('li').forEach(li => {
+      const text = li.textContent.replace(/\u00a0/g,'').trim();
+      if(!text) li.remove();
+    });
+
+    // ── Fix 2: Hapus <p> kosong berlebihan di dalam <li> ──
+    clone.querySelectorAll('li p').forEach(p => {
+      const text = p.textContent.replace(/\u00a0/g,'').trim();
+      if(!text) p.remove();
+    });
+
+    // ── Fix 3: Tanda tangan — tidak perlu manipulasi, biarkan CSS yang handle ──
+
+    const htmlContent = clone.innerHTML;
 
     const topik    = document.getElementById('topik')?.value?.trim() || 'Modul-Ajar';
     const safeName = topik.replace(/[^\w\s]/g,'').replace(/\s+/g,'-').slice(0,50) || 'Modul-Ajar';
-
-    // ── Perbaikan 1: Tabel tanda tangan ──
-    // Pastikan sel tanda tangan punya <br> yang benar antar baris
-    htmlContent = htmlContent.replace(
-      /<td([^>]*)>(Mengetahui,)\s*<br\s*\/?>\s*(Kepala Madrasah,)<\/td>/gi,
-      '<td$1>Mengetahui,<br>Kepala Madrasah,</td>'
-    );
-
-    // Perbaiki nama+NIP yang mungkin menyatu (dari strong+br+teks)
-    htmlContent = htmlContent.replace(
-      /(<strong>[^<]+<\/strong>)(NIP\.)/gi,
-      '$1<br>$2'
-    );
-
-    // ── Perbaikan 2: Hapus <hr> — di Word sering berantakan ──
-    htmlContent = htmlContent.replace(/<hr\s*\/?>/gi, '<p style="margin:0;padding:0;border-bottom:1px solid #ddd;margin-bottom:8pt"></p>');
-
-    // ── Perbaikan 3: Pastikan tabel tanda tangan tanpa border ──
-    htmlContent = htmlContent.replace(
-      /<table([^>]*)(Mengetahui|style="[^"]*border:none[^"]*")[^>]*>/gi,
-      (match) => match.includes('class="ttd"') ? match : match.replace('<table', '<table class="ttd"')
-    );
 
     const wordCSS = `
       body {
         font-family: Calibri, sans-serif;
         font-size: 11pt;
         color: #1a1a1a;
-        line-height: 1.4;
+        line-height: 1.45;
+        margin: 0; padding: 0;
       }
       h1 {
         font-size: 15pt;
@@ -3059,46 +3057,52 @@ function downloadWord(){
         text-align: center;
         border-bottom: 2pt solid #1a1a1a;
         padding-bottom: 4pt;
-        margin-top: 0;
-        margin-bottom: 10pt;
+        margin: 0 0 10pt 0;
       }
       h2 {
         font-size: 12pt;
         font-weight: bold;
-        border-bottom: 1pt solid #555555;
+        border-bottom: 1pt solid #555;
         padding-bottom: 3pt;
-        margin-top: 16pt;
-        margin-bottom: 6pt;
+        margin: 16pt 0 6pt 0;
       }
       h3 {
         font-size: 11pt;
         font-weight: bold;
-        margin-top: 12pt;
-        margin-bottom: 4pt;
+        margin: 12pt 0 4pt 0;
       }
       h4 {
         font-size: 11pt;
         font-weight: bold;
-        color: #333333;
-        margin-top: 8pt;
-        margin-bottom: 3pt;
+        color: #333;
+        margin: 8pt 0 3pt 0;
       }
       p {
         margin: 0 0 5pt 0;
-        line-height: 1.4;
+        line-height: 1.45;
       }
+      /* ── Bullet & Numbering Fix ── */
       ul {
-        margin: 0 0 5pt 0;
-        padding-left: 18pt;
+        margin: 2pt 0 6pt 0;
+        padding-left: 14pt;
+        list-style-type: disc;
       }
       ol {
-        margin: 0 0 5pt 0;
-        padding-left: 18pt;
+        margin: 2pt 0 6pt 0;
+        padding-left: 14pt;
+        list-style-type: decimal;
       }
       li {
-        margin-bottom: 2pt;
-        line-height: 1.4;
+        margin: 0 0 3pt 0;
+        padding-left: 2pt;
+        line-height: 1.45;
+        text-align: left;
       }
+      ul ul, ol ol, ul ol, ol ul {
+        margin: 2pt 0;
+        padding-left: 12pt;
+      }
+      /* ── Tabel biasa ── */
       table {
         border-collapse: collapse;
         width: 100%;
@@ -3106,7 +3110,7 @@ function downloadWord(){
         font-size: 10pt;
       }
       table td, table th {
-        border: 1pt solid #999999;
+        border: 1pt solid #999;
         padding: 4pt 6pt;
         vertical-align: top;
         line-height: 1.35;
@@ -3116,35 +3120,35 @@ function downloadWord(){
         font-weight: bold;
         text-align: left;
       }
-      /* Tabel tanda tangan — tanpa border */
-      table.ttd, table.ttd td {
+      /* ── Tabel tanda tangan — tanpa border ── */
+      table.ttd, table.ttd td, table.ttd th {
         border: none !important;
-        border-collapse: collapse;
+        background: none !important;
         margin-top: 20pt;
-      }
-      table.ttd td {
         padding: 2pt 0;
         vertical-align: top;
       }
       strong { font-weight: bold; }
       em { font-style: italic; }
+      hr {
+        border: none;
+        border-top: 1pt solid #ddd;
+        margin: 10pt 0;
+      }
     `;
 
-    // Deteksi dan tambahkan class ttd pada tabel tanda tangan via JS DOM
+    // Tandai tabel tanda tangan via DOM (lebih andal dari regex)
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = htmlContent;
     tempDiv.querySelectorAll('table').forEach(tbl => {
       if(tbl.textContent.includes('Mengetahui') || tbl.textContent.includes('Kepala Madrasah')){
-        tbl.className = 'ttd';
-        tbl.style.cssText = '';
-        // Perbaiki sel-sel di dalam tabel tanda tangan
-        tbl.querySelectorAll('td').forEach(td => {
-          td.style.cssText = '';
+        tbl.setAttribute('class','ttd');
+        tbl.removeAttribute('style');
+        tbl.querySelectorAll('td, th').forEach(td => {
           td.removeAttribute('style');
         });
-        // Set lebar kolom 35% dan 65%
-        const rows = tbl.querySelectorAll('tr');
-        rows.forEach(tr => {
+        // Set lebar kolom 35/65
+        tbl.querySelectorAll('tr').forEach(tr => {
           const cells = tr.querySelectorAll('td');
           if(cells.length >= 2){
             cells[0].style.width = '35%';
@@ -3153,7 +3157,8 @@ function downloadWord(){
         });
       }
     });
-    htmlContent = tempDiv.innerHTML;
+
+    const finalHTML = tempDiv.innerHTML;
 
     const wordHTML = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
       xmlns:w="urn:schemas-microsoft-com:office:word"
@@ -3174,7 +3179,7 @@ function downloadWord(){
 ${wordCSS}
 </style>
 </head>
-<body>${htmlContent}</body>
+<body>${finalHTML}</body>
 </html>`;
 
     const blob = new Blob(['\ufeff', wordHTML], { type:'application/msword;charset=utf-8' });
