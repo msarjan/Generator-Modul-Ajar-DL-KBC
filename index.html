@@ -1353,6 +1353,14 @@ function handleUpload(input){
   const reader=new FileReader();
   reader.onload=async (e)=>{
     const base64 = e.target.result.split(',')[1];
+    // ── Validasi magic bytes: %PDF- = "JVBERi0" dalam base64 ──
+    // Memastikan file benar-benar PDF, bukan file lain yang diganti ekstensi
+    if(!base64 || !base64.startsWith('JVBERi0')){
+      showToast('File tidak valid. Pastikan file benar-benar berformat PDF.');
+      input.value='';
+      zone.innerHTML=`<div style="font-size:13px;color:var(--muted)">📄 Drag & drop PDF di sini, atau klik untuk pilih file</div>`;
+      return;
+    }
     bahanAjarBase64   = base64;
     bahanAjarFilename = file.name;
     bahanAjarSize     = file.size;
