@@ -283,6 +283,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <!-- html2pdf.js untuk download PDF yang rapi -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<!-- docx.js untuk generate file Word (.docx) langsung di browser -->
+<script src="https://unpkg.com/docx@8.5.0/build/index.js"></script>
 </head>
 <body>
 
@@ -871,9 +873,11 @@
     <div class="result-header">
       <h2>📄 Hasil Modul Ajar</h2>
       <div class="result-actions">
+        <button id="btn-dummy" onclick="loadDummy()" style="display:none;padding:7px 14px;border-radius:6px;border:1.5px dashed #F59E0B;background:#FFFBEB;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;color:#92400E;gap:5px;align-items:center">🧪 Load Dummy</button>
         <button class="copy-btn" onclick="copyResult()">📋 Salin</button>
         <button class="copy-btn" onclick="openInGoogleDocs()">📝 Buka di Google Docs</button>
-        <button class="copy-btn primary" onclick="downloadPDF()">📄 Download PDF</button>
+        <button class="copy-btn" onclick="downloadWord()">📄 Download Word</button>
+        <button class="copy-btn primary" onclick="downloadPDF()">🖨️ Download PDF</button>
       </div>
     </div>
     <div class="disclaimer-result">
@@ -3006,6 +3010,595 @@ ${content}
 </body></html>`);
   w.document.close();
   w.focus();
+}
+// ── Download Word (.docx) ──
+async function downloadWord(){
+  if(!lastGeneratedMarkdown){
+    showToast('Modul belum digenerate. Klik tombol Generate terlebih dahulu.','warning');
+    return;
+  }
+
+  // Cek apakah docx library sudah load
+  if(typeof docx === 'undefined'){
+    showToast('Library Word sedang dimuat, coba lagi dalam 3 detik...','warning');
+    return;
+  }
+
+  const btn = document.querySelector('.copy-btn[onclick="downloadWord()"]');
+  if(btn){ btn.textContent = '⏳ Menyiapkan...'; btn.disabled = true; }
+
+  try {
+    const {
+      Document, Packer, Paragraph, TextRun, HeadingLevel,
+      Table, TableRow, TableCell, WidthType, BorderStyle,
+      AlignmentType, ShadingType, convertInchesToTwip
+    } = docx;
+
+    // Konversi cm ke twip (1cm = 567 twip)
+    const cm = v => Math.round(v * 567);
+
+    // Warna aksen dari tema aktif
+    const rs = getComputedStyle(document.documentElement);
+    const rawGreenDark = rs.getPropertyValue('--green-dark').trim() || '#0F6E56';
+    const accentHex = rawGreenDark.replace('#','');
+
+    // ── Parser Markdown sederhana → array children docx ──
+    function parseInline(text){
+      const runs = [];
+      // Bold: **text**
+      const parts = text.split(/(\*\*[^*]+\*\*)/g);
+      for(const part of parts){
+        if(part.startsWith('**') && part.endsWith('**')){
+          runs.push(new TextRun({text: part.slice(2,-2), bold: true, font:'Calibri', size:22}));
+        } else if(part){
+          runs.push(new TextRun({text: part, font:'Calibri', size:22}));
+        }
+      }
+      return runs.length ? runs : [new TextRun({text:'', font:'Calibri', size:22})];
+    }
+
+    function makeParagraph(text, opts={}){
+      return new Paragraph({
+        children: parseInline(text),
+        spacing: {after: opts.spacingAfter ?? 80, before: opts.spacingBefore ?? 0},
+        alignment: opts.alignment || AlignmentType.LEFT,
+        indent: opts.indent ? {left: cm(opts.indent)} : undefined,
+      });
+    }
+
+    function makeHeading1(text){
+      return new Paragraph({
+        children:[new TextRun({text, bold:true, size:28, font:'Calibri', color:accentHex})],
+        heading: HeadingLevel.HEADING_1,
+        alignment: AlignmentType.CENTER,
+        spacing:{after:120, before:0},
+        border:{bottom:{style:BorderStyle.SINGLE, size:6, color:accentHex}},
+      });
+    }
+
+    function makeHeading2(text){
+      return new Paragraph({
+        children:[new TextRun({text, bold:true, size:24, font:'Calibri', color:accentHex})],
+        heading: HeadingLevel.HEADING_2,
+        spacing:{after:80, before:200},
+        border:{bottom:{style:BorderStyle.SINGLE, size:4, color:accentHex}},
+      });
+    }
+
+    function makeHeading3(text){
+      return new Paragraph({
+        children:[new TextRun({text, bold:true, size:22, font:'Calibri'})],
+        heading: HeadingLevel.HEADING_3,
+        spacing:{after:60, before:160},
+      });
+    }
+
+    function makeHeading4(text){
+      return new Paragraph({
+        children:[new TextRun({text, bold:true, size:22, font:'Calibri', color:'444444'})],
+        spacing:{after:40, before:120},
+      });
+    }
+
+    function makeBullet(text, level=0){
+      return new Paragraph({
+        children: parseInline(text),
+        bullet:{level},
+        spacing:{after:40},
+        indent:{left: cm(0.5 + level*0.5), hanging: cm(0.3)},
+      });
+    }
+
+    function makeNumbered(text, num){
+      return new Paragraph({
+        children:[new TextRun({text:`${num}. `, bold:true, font:'Calibri', size:22}), ...parseInline(text)],
+        spacing:{after:40},
+        indent:{left: cm(0.5), hanging: cm(0.5)},
+      });
+    }
+
+    function makeHRule(){
+      return new Paragraph({
+        children:[new TextRun({text:''})],
+        border:{bottom:{style:BorderStyle.SINGLE, size:4, color:'CCCCCC'}},
+        spacing:{after:120, before:120},
+      });
+    }
+
+    // ── Buat tabel markdown ──
+    function makeTable(lines){
+      // lines: array baris tabel tanpa separator
+      const rows = lines
+        .filter(l => l.trim().startsWith('|') && !l.match(/^\|[-:\s|]+\|$/))
+        .map(l => {
+          const cells = l.split('|').slice(1,-1).map(c => c.trim());
+          return cells;
+        });
+      if(!rows.length) return null;
+
+      const colCount = Math.max(...rows.map(r=>r.length));
+      // Lebar kolom rata (total page width ~14800 twip untuk A4 margin 2cm kiri-kanan)
+      const totalWidth = 14800;
+      const colWidth = Math.floor(totalWidth / colCount);
+
+      const tableRows = rows.map((cells, ri) => {
+        const isHeader = ri === 0;
+        return new TableRow({
+          children: cells.map((cellText, ci) => {
+            // Isi sisa kolom kalau kurang
+            const text = cellText || '';
+            return new TableCell({
+              children:[new Paragraph({
+                children: parseInline(text),
+                spacing:{after:40, before:40},
+                alignment: AlignmentType.LEFT,
+              })],
+              width:{size: colWidth, type: WidthType.DXA},
+              shading: isHeader ? {type:ShadingType.CLEAR, fill:'F3F4F6'} : undefined,
+              margins:{top:cm(0.1), bottom:cm(0.1), left:cm(0.15), right:cm(0.15)},
+            });
+          }),
+          tableHeader: isHeader,
+        });
+      });
+
+      return new Table({
+        rows: tableRows,
+        width:{size:totalWidth, type:WidthType.DXA},
+        margins:{top:cm(0.1), bottom:cm(0.1), left:0, right:0},
+      });
+    }
+
+    // ── Tabel penutup tanda tangan (khusus, tanpa border) ──
+    function makeSignatureTable(leftContent, rightContent){
+      const noBorder = {style:BorderStyle.NONE, size:0, color:'FFFFFF'};
+      const borders = {top:noBorder, bottom:noBorder, left:noBorder, right:noBorder, insideH:noBorder, insideV:noBorder};
+
+      function sigCell(children, width){
+        return new TableCell({
+          children,
+          width:{size:width, type:WidthType.DXA},
+          borders,
+          margins:{top:0, bottom:0, left:0, right:0},
+        });
+      }
+
+      // Parse rightContent baris per baris
+      const rightLines = rightContent.split('\n').filter(l=>l.trim());
+      const leftLines  = leftContent.split('\n').filter(l=>l.trim());
+
+      const leftW  = Math.round(14800 * 0.35);
+      const rightW = Math.round(14800 * 0.65);
+
+      return new Table({
+        rows:[
+          // Baris kota & tanggal (hanya di kolom kanan)
+          new TableRow({ children:[
+            sigCell([new Paragraph({children:[new TextRun({text:'',font:'Calibri',size:22})], spacing:{after:0}})], leftW),
+            sigCell([new Paragraph({children: parseInline(rightLines[0]||''), spacing:{after:60}})], rightW),
+          ]}),
+          // Baris jabatan
+          new TableRow({ children:[
+            sigCell([new Paragraph({children:[new TextRun({text:'Mengetahui,',font:'Calibri',size:22})], spacing:{after:0}}),
+                     new Paragraph({children:[new TextRun({text:'Kepala Madrasah,',font:'Calibri',size:22})], spacing:{after:0}})], leftW),
+            sigCell([new Paragraph({children:[new TextRun({text:'Guru Mata Pelajaran,',font:'Calibri',size:22})], spacing:{after:0}})], rightW),
+          ]}),
+          // Ruang tanda tangan
+          new TableRow({ children:[
+            sigCell([new Paragraph({children:[new TextRun({text:'',font:'Calibri',size:22})], spacing:{after:300}})], leftW),
+            sigCell([new Paragraph({children:[new TextRun({text:'',font:'Calibri',size:22})], spacing:{after:300}})], rightW),
+          ]}),
+          // Nama
+          new TableRow({ children:[
+            sigCell([new Paragraph({children:[new TextRun({text:leftLines[0]||'',bold:true,font:'Calibri',size:22})], spacing:{after:0}})], leftW),
+            sigCell([new Paragraph({children:[new TextRun({text:rightLines[1]||'',bold:true,font:'Calibri',size:22})], spacing:{after:0}})], rightW),
+          ]}),
+          // NIP
+          new TableRow({ children:[
+            sigCell([new Paragraph({children:[new TextRun({text:leftLines[1]||'',font:'Calibri',size:22})], spacing:{after:0}})], leftW),
+            sigCell([new Paragraph({children:[new TextRun({text:rightLines[2]||'',font:'Calibri',size:22})], spacing:{after:0}})], rightW),
+          ]}),
+        ],
+        width:{size:14800, type:WidthType.DXA},
+        borders:{
+          top:{style:BorderStyle.NONE},bottom:{style:BorderStyle.NONE},
+          left:{style:BorderStyle.NONE},right:{style:BorderStyle.NONE},
+          insideH:{style:BorderStyle.NONE},insideV:{style:BorderStyle.NONE},
+        },
+      });
+    }
+
+    // ── Main parser: Markdown → docx children array ──
+    function parseMarkdown(md){
+      const children = [];
+      const lines = md.split('\n');
+      let i = 0;
+      let numberedIdx = 0;
+
+      while(i < lines.length){
+        const line = lines[i];
+        const trimmed = line.trim();
+
+        // Skip empty
+        if(!trimmed){ i++; numberedIdx=0; continue; }
+
+        // H1
+        if(trimmed.startsWith('# ') && !trimmed.startsWith('## ')){
+          children.push(makeHeading1(trimmed.slice(2).trim()));
+          i++; continue;
+        }
+        // Italic subtitle (setelah H1)
+        if(trimmed.startsWith('*') && trimmed.endsWith('*') && !trimmed.startsWith('**')){
+          children.push(new Paragraph({
+            children:[new TextRun({text:trimmed.slice(1,-1), italics:true, font:'Calibri', size:20, color:'666666'})],
+            alignment:AlignmentType.CENTER, spacing:{after:160},
+          }));
+          i++; continue;
+        }
+        // H2
+        if(trimmed.startsWith('## ')){
+          children.push(makeHeading2(trimmed.slice(3).trim()));
+          i++; continue;
+        }
+        // H3
+        if(trimmed.startsWith('### ')){
+          children.push(makeHeading3(trimmed.slice(4).trim()));
+          i++; continue;
+        }
+        // H4
+        if(trimmed.startsWith('#### ')){
+          children.push(makeHeading4(trimmed.slice(5).trim()));
+          i++; continue;
+        }
+        // HR
+        if(trimmed.match(/^---+$/)){
+          children.push(makeHRule());
+          i++; continue;
+        }
+        // Tabel markdown
+        if(trimmed.startsWith('|')){
+          // Kumpulkan semua baris tabel
+          const tableLines = [];
+          while(i < lines.length && lines[i].trim().startsWith('|')){
+            tableLines.push(lines[i]);
+            i++;
+          }
+          // Cek apakah ini tabel penutup (tanpa border, via style attribute di HTML)
+          // Deteksi: baris pertama mengandung kota+tanggal atau "Mengetahui"
+          const combinedTable = tableLines.join('\n');
+          const isSignature = combinedTable.includes('Mengetahui') ||
+                              combinedTable.match(/\d{4}$/) && tableLines.length <= 6;
+
+          if(isSignature){
+            // Parse tabel penutup
+            const rows = tableLines
+              .filter(l=>!l.match(/^\|[-:\s|]+\|$/))
+              .map(l=>l.split('|').slice(1,-1).map(c=>c.trim()));
+            // Ambil data dari baris-baris tabel
+            const kotaTanggal = rows[0]?.[1] || '';
+            const namaKepsek  = rows[3]?.[0] || '';
+            const nipKepsek   = rows[4]?.[0] || '';
+            const namaGuru    = rows[3]?.[1] || '';
+            const nipGuru     = rows[4]?.[1] || '';
+            children.push(new Paragraph({children:[new TextRun({text:'',font:'Calibri',size:22})], spacing:{before:400, after:0}}));
+            children.push(makeSignatureTable(
+              `${namaKepsek}\n${nipKepsek}`,
+              `${kotaTanggal}\n${namaGuru}\n${nipGuru}`
+            ));
+          } else {
+            const tbl = makeTable(tableLines);
+            if(tbl){
+              children.push(new Paragraph({children:[new TextRun({text:'',size:22})], spacing:{after:0}}));
+              children.push(tbl);
+              children.push(new Paragraph({children:[new TextRun({text:'',size:22})], spacing:{after:80}}));
+            }
+          }
+          continue;
+        }
+        // HTML (penutup tanda tangan versi HTML dari prompt)
+        if(trimmed.startsWith('<table') || trimmed.startsWith('<tr') || trimmed.startsWith('<td') || trimmed.startsWith('</table')){
+          // Skip HTML table tags — sudah ditangani via makeSignatureTable di atas
+          i++; continue;
+        }
+        if(trimmed.startsWith('<')){
+          i++; continue;
+        }
+        // Bullet (- atau *)
+        if(trimmed.match(/^[-*]\s+/) && !trimmed.match(/^[-*]{3,}$/)){
+          const level = Math.floor((line.length - line.trimStart().length) / 2);
+          children.push(makeBullet(trimmed.replace(/^[-*]\s+/,''), Math.min(level,2)));
+          numberedIdx = 0;
+          i++; continue;
+        }
+        // Numbered list
+        if(trimmed.match(/^\d+\.\s+/)){
+          numberedIdx++;
+          children.push(makeNumbered(trimmed.replace(/^\d+\.\s+/,''), numberedIdx));
+          i++; continue;
+        }
+        // Paragraph biasa
+        numberedIdx = 0;
+        children.push(makeParagraph(trimmed));
+        i++;
+      }
+      return children;
+    }
+
+    // ── Build document ──
+    const topik = document.getElementById('topik')?.value?.trim() || 'Modul-Ajar';
+    const namaGuru = document.getElementById('nama')?.value?.trim() || 'Guru';
+    const safeName = topik.replace(/[^a-zA-Z0-9\s]/g,'').replace(/\s+/g,'-').substring(0,50) || 'Modul-Ajar';
+
+    const children = parseMarkdown(lastGeneratedMarkdown);
+
+    const doc = new Document({
+      styles:{
+        default:{
+          document:{
+            run:{font:'Calibri', size:22},
+            paragraph:{spacing:{after:80}},
+          },
+        },
+      },
+      sections:[{
+        properties:{
+          page:{
+            size:{width:cm(21*10/2.54*720/2.54), height:cm(29.7*10/2.54*720/2.54)},
+            margin:{top:cm(2.5), bottom:cm(2.5), left:cm(2), right:cm(2)},
+          },
+        },
+        children,
+      }],
+    });
+
+    const blob = await Packer.toBlob(doc);
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `${safeName}.docx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url), 1000);
+
+    showToast('✅ File Word berhasil didownload!','success');
+
+  } catch(err){
+    console.error('Word error:', err);
+    showToast('Gagal membuat file Word: '+err.message);
+  }
+
+  if(btn){ btn.textContent = '📄 Download Word'; btn.disabled = false; }
+}// ── DEV MODE: aktif hanya kalau URL mengandung ?dev=1 ──
+(function(){
+  if(new URLSearchParams(window.location.search).get('dev')==='1'){
+    const btn = document.getElementById('btn-dummy');
+    if(btn){
+      btn.style.display='flex';
+    }
+  }
+})();
+
+// ── Dummy Markdown (dari PDF modul Matematika — untuk test Word tanpa API) ──
+const DUMMY_MARKDOWN = `# MODUL AJAR MATEMATIKA
+*Pendekatan Kurikulum Berbasis Cinta & Deep Learning*
+
+## A. IDENTITAS UMUM
+
+| Nama Penyusun | Wilmar |
+|---|---|
+| Satuan Pendidikan | MI (Madrasah Ibtidaiyah) |
+| Nama Madrasah | MIN 2 Sleman |
+| Mata Pelajaran | Matematika |
+| Kelas / Fase | VI / Fase C (Kelas V–VI) |
+| Topik | Kubus dan Balok |
+| Alokasi Waktu | 3 Pertemuan × 3 JP × 35 menit = 315 menit |
+| Model Pembelajaran | Direct Instruction |
+
+## B. IDENTIFIKASI MURID
+
+- **Pengetahuan Awal:** Murid telah mengenal bangun ruang secara sekilas dari pengalaman sehari-hari, seperti melihat kardus, dadu, dan bangunan di sekitar mereka, namun belum mampu menganalisisnya secara sistematis.
+- **Minat Belajar:** Murid menyukai aktivitas yang melibatkan praktik langsung dan proyek kreatif, serta merespons baik terhadap pembelajaran yang menghadirkan benda nyata dan tantangan visual-spasial.
+- **Kebutuhan Belajar:** Murid membutuhkan struktur pembelajaran yang bertahap dan jelas, dengan instruksi konkret dan contoh nyata, serta kesempatan berkolaborasi untuk memupuk toleransi dan kerja sama antar teman.
+
+## C. MATERI PELAJARAN
+
+- Sifat dan ciri-ciri kubus dan balok (sisi, rusuk, titik sudut)
+- Mengonstruksi dan mengurai susunan kubus dan balok menjadi bentuk gabungan yang berbeda
+- Visualisasi spasial: menggambar tampak depan, tampak samping, dan tampak atas dari susunan kubus/balok
+- Menentukan lokasi pada sistem berpetak menggunakan pasangan huruf dan bilangan
+- Menentukan jalur dan menghitung jarak horizontal-vertikal antara dua titik pada sistem berpetak
+
+## D. DIMENSI PROFIL LULUSAN
+
+1. **Penalaran Kritis:** Murid dilatih menganalisis susunan kubus/balok dari berbagai sudut pandang, membandingkan tampilan spasial, dan menarik kesimpulan logis tentang struktur bangun ruang yang tidak seluruhnya terlihat.
+2. **Kreativitas:** Murid merancang susunan kubus/balok secara bebas dan kreatif, menuangkan imajinasi spasial ke dalam gambar dua dimensi dari berbagai arah layaknya seorang arsitek.
+3. **Kolaborasi:** Murid bekerja dalam kelompok untuk membangun, mendiskusikan, dan merekonstruksi susunan bangun ruang berdasarkan gambar tampak yang dibuat kelompok lain.
+
+## E. TEMA KURIKULUM CINTA
+
+- **Cinta Ilmu:** Mempelajari kubus dan balok menumbuhkan rasa ingin tahu dan ketekunan dalam memahami bentuk-bentuk ciptaan Allah yang hadir dalam kehidupan sehari-hari.
+- **Cinta Lingkungan:** Konteks bangunan dari kontainer bekas mendorong murid menyadari pentingnya mendaur ulang dan memanfaatkan sumber daya secara bijaksana.
+
+## F. MATERI INSERSI KURIKULUM BERBASIS CINTA
+
+- **Cinta Ilmu:** Mempelajari bangun ruang secara sungguh-sungguh mencerminkan sikap *istiqamah* dalam menuntut ilmu dan *amanah* dalam memanfaatkan ilmu tersebut untuk memahami keindahan ciptaan Allah yang terstruktur dengan sempurna di alam semesta.
+- **Cinta Lingkungan:** Konteks penggunaan kontainer bekas sebagai bahan bangunan mengajak murid menghayati nilai *amanah* terhadap alam, bahwa menjaga lingkungan dari limbah adalah bagian dari tanggung jawab seorang khalifah di bumi.
+
+## G. DESAIN PEMBELAJARAN
+
+- **Capaian Pembelajaran (CP):** 3.4 Geometri — Mengkonstruksi dan mengurai bangun ruang (kubus, balok, dan gabungannya) dan mengenali visualisasi spasial; membandingkan karakteristik antar bangun datar dan antar bangun ruang; serta menentukan lokasi menggunakan sistem berpetak.
+- **Tujuan Pembelajaran (TP):**
+  1. Murid dapat menyusun dan mengurai kubus, balok, serta gabungannya menjadi berbagai bentuk bangun ruang dengan tepat.
+  2. Murid dapat menggambarkan tampilan susunan kubus dan balok dari tiga arah (tampak depan, tampak samping, tampak atas) secara akurat.
+  3. Murid dapat merekonstruksi susunan kubus/balok berdasarkan gambar tampak dua dimensi yang diberikan.
+  4. Murid dapat menentukan lokasi suatu titik, mendeskripsikan jalur, serta menghitung jarak horizontal dan vertikal antara dua titik pada sistem berpetak.
+- **Lintas Disiplin:** Bahasa Indonesia, IPAS, Koding & Kecerdasan Artifisial — Murid melatih kemampuan deskripsi dan komunikasi saat mempresentasikan hasil gambar tampak bangunan; mengaitkan konsep struktur bangunan dengan IPAS; serta mengeksplorasi logika koordinat sebagai fondasi pemrograman.
+- **Praktik Pedagogis:** Direct Instruction dengan prinsip Mindful, Meaningful, dan Joyful Learning.
+- **Kemitraan:** Orang tua / wali — Orang tua diajak mendampingi murid mengamati benda berbentuk kubus dan balok di rumah dan membawa hasil pengamatan sebagai bahan diskusi di kelas.
+- **Lingkungan:** Lingkungan madrasah — Halaman dan bangunan madrasah dimanfaatkan sebagai sumber pengamatan langsung bangun ruang nyata.
+- **Digital:** Gambar / infografis, IFP Board — Digunakan untuk menampilkan ilustrasi tampak bangunan dan mendemonstrasikan sistem berpetak secara interaktif.
+
+## H. PENGALAMAN BELAJAR
+
+### Pertemuan 1 (3 JP / 105 menit) — Mengenal dan Menyusun Kubus & Balok
+
+**Kegiatan Awal (20 menit):**
+- **Membangun Kesadaran:** Guru menyapa murid dengan hangat dan memandu 2 menit mindful breathing: "Tarik napas perlahan… hembuskan… sekarang kita siap belajar dengan pikiran jernih dan hati tenang."
+- **Pilar Niat:** Guru mengajak murid membaca Bismillah bersama dan menyampaikan niat belajar hari ini.
+- **Apersepsi Bermakna:** Guru mengajak murid mengingat kembali bangun ruang yang pernah dipelajari di kelas V.
+- **Insersi KBC:** Guru menampilkan hadis "Menuntut ilmu itu wajib bagi setiap Muslim." (HR. Ibnu Majah) dan mengaitkannya dengan pentingnya ilmu geometri bagi arsitek dan insinyur.
+- **Pertanyaan Pemantik:** "Kalau kamu punya banyak kotak bekas yang sama bentuknya, kira-kira bisa kalian susun jadi bangunan seperti apa?"
+
+**Kegiatan Inti (70 menit) — Sintaks Direct Instruction:**
+- **Tahap 1 — Orientasi:** Guru menyampaikan tujuan pembelajaran dan menunjukkan benda nyata (kotak susu, dadu, kotak sepatu).
+- **Tahap 2 — Presentasi/Demonstrasi:** Guru mendemonstrasikan cara menyusun 2 kubus dan menampilkan infografis perbandingan kubus dan balok.
+- **Tahap 3 — Latihan Terpandu:** Murid bekerja kelompok menyusun kubus manipulatif dan mencatat temuan di LKPD Pertemuan 1.
+
+**Kegiatan Penutup (15 menit):**
+- **Refleksi Materi:** Guru memandu refleksi parsial (lihat Bagian K).
+- **Refleksi Emosi:** Murid menunjukkan emoji perasaan pada LKPD.
+- **Syukur:** "Ya Allah, terima kasih atas ilmu tentang bentuk-bentuk ciptaan-Mu yang indah. Aamiin."
+
+### Pertemuan 2 (3 JP / 105 menit) — Visualisasi Spasial
+
+**Kegiatan Awal (20 menit):**
+- **Membangun Kesadaran:** Guru memandu mindful moment: "Bayangkan sebuah kotak di depanmu — seperti apa bentuknya dari depan? Dari samping? Dari atas?"
+- **Apersepsi Bermakna (Recap Pertemuan 1):** Guru menampilkan kembali gambar susunan kubus dari pertemuan sebelumnya.
+- **Insersi KBC:** Guru menanamkan nilai *tasamuh* melalui cerita Tigor dan Tenri yang menggambar bangunan dari arah berbeda.
+- **Pertanyaan Pemantik:** "Kalau kamu melihat sebuah bangunan dari depan, samping, dan atas — apakah ketiganya terlihat sama?"
+
+**Kegiatan Inti (70 menit) — Sintaks Direct Instruction (Lanjutan):**
+- **Tahap 4 — Presentasi Topik Baru:** Guru mendemonstrasikan cara melihat susunan kubus dari tiga arah dan menggambar hasilnya.
+- **Tahap 5 — Latihan Terpandu:** Murid bekerja berpasangan menggambar tampak depan, kanan, dan atas dari susunan kubus di LKPD Pertemuan 2.
+- **Tahap 6 — Latihan Mandiri Awal:** Murid mengerjakan satu soal spasial secara mandiri sebagai asesmen formatif.
+
+**Kegiatan Penutup (15 menit):**
+- **Refleksi Materi:** Guru memandu refleksi parsial Pertemuan 2.
+- **Syukur:** "Ya Allah, Engkau menciptakan alam semesta dengan ukuran dan bentuk yang sempurna. Aamiin."
+
+### Pertemuan 3 (3 JP / 105 menit) — Sistem Berpetak & Asesmen Sumatif
+
+**Kegiatan Awal (20 menit):**
+- **Membangun Kesadaran:** Guru menampilkan Peta Indonesia dan mengajak murid mengamati sistem koordinat pada peta.
+- **Apersepsi Bermakna (Recap Pertemuan 1 & 2):** Guru menampilkan ringkasan dua pertemuan sebelumnya dalam infografis sederhana.
+- **Insersi KBC:** Guru mengaitkan sistem berpetak dengan sikap *amanah* seorang arsitek dalam membuat gambar yang akurat.
+- **Pertanyaan Pemantik:** "Bagaimana cara memberi tahu lokasi bangkumu lewat pesan tertulis tanpa menyebut nama siapapun?"
+
+**Kegiatan Inti (65 menit) — Sintaks Direct Instruction (Penyelesaian):**
+- **Tahap 6 — Presentasi Sistem Berpetak:** Guru mendemonstrasikan cara membaca koordinat dan menghitung jarak pada sistem berpetak.
+- **Tahap 7 — Latihan Terpandu:** Murid bermain "Tic-Tac-Toe Koordinat" secara klasikal lalu mengerjakan LKPD Pertemuan 3.
+- **Tahap 8 — Latihan Mandiri/Asesmen Sumatif:** Murid mengerjakan lembar soal sumatif (5–8 soal) secara mandiri selama 25 menit.
+
+**Kegiatan Penutup (20 menit):**
+- **Refleksi Materi (LENGKAP):** Guru membagikan lembar refleksi lengkap 4 pertanyaan (lihat Bagian K).
+- **Penguatan Karakter:** "Ilmu bangun ruang dan lokasi digunakan oleh arsitek, insinyur, pilot, bahkan programmer. Gunakan dengan amanah!"
+- **Syukur:** "Ya Allah, kami telah menyelesaikan satu perjalanan belajar. Jadikan kami generasi yang cinta ilmu, cinta sesama, dan cinta lingkungan. Aamiin."
+
+## I. ASESMEN PEMBELAJARAN
+
+| Jenis Asesmen | Teknik | Instrumen | Waktu Pelaksanaan |
+|---|---|---|---|
+| Asesmen Formatif | Observasi aktif & tanya jawab lisan | Lembar observasi partisipasi + catatan guru (jurnal anekdotal) | Selama Kegiatan Inti Pertemuan 1 dan 2 |
+| Asesmen Formatif | Penugasan kelompok berbasis produk | LKPD Pertemuan 1 dan 2 dengan rubrik penilaian | Akhir Kegiatan Inti Pertemuan 1 dan 2 |
+| Asesmen Formatif | Latihan mandiri singkat | Soal praktik 1 tampilan spasial dikerjakan secara mandiri | Akhir Kegiatan Inti Pertemuan 2 |
+| Asesmen Sumatif | Tes tertulis mandiri | Lembar soal sumatif 5–8 butir soal mencakup seluruh TP dengan pedoman penskoran | Kegiatan Inti Tahap 8, Pertemuan 3 |
+
+## J. PENGAYAAN DAN REMEDIAL
+
+- **Pengayaan:** Murid yang telah menguasai seluruh TP diarahkan mengeksplorasi semua kemungkinan jalur terpendek pada sistem berpetak dan menemukan pola bilangannya. Murid juga dapat mencoba konstruksi kubus kompleks menggunakan alat digital isometrik dan mendokumentasikan hasilnya sebagai portofolio arsitek mini.
+- **Remedial:** Murid yang belum tuntas dibimbing secara individual menggunakan kubus manipulatif fisik. Guru menyederhanakan soal bertahap dimulai dari susunan 2 kubus dan memandu murid membuat peta lokasi bangku kelas sebagai latihan sistem berpetak yang paling kontekstual.
+
+## K. REFLEKSI DIRI
+
+### Refleksi Murid — Pertemuan 1 (PARSIAL)
+
+| Pertanyaan Refleksi | Sangat Paham | Paham | Perlu Belajar Lagi |
+|---|---|---|---|
+| Aku bisa membedakan ciri-ciri kubus dan balok (sisi, rusuk, titik sudut). | | | |
+| Aku bisa menyusun beberapa kubus menjadi bentuk baru dan menjelaskan apakah dua susunan itu sama atau berbeda. | | | |
+
+### Refleksi Murid — Pertemuan 2 (PARSIAL)
+
+| Pertanyaan Refleksi | Sangat Paham | Paham | Perlu Belajar Lagi |
+|---|---|---|---|
+| Aku bisa menggambar tampilan susunan kubus dari arah tampak depan, tampak samping, dan tampak atas. | | | |
+| Aku bisa menyusun ulang kubus berdasarkan gambar tampak dari tiga arah yang diberikan teman. | | | |
+
+### Refleksi Murid — Pertemuan 3 (LENGKAP)
+
+| Pertanyaan Refleksi | Sangat Paham | Paham | Perlu Belajar Lagi |
+|---|---|---|---|
+| Aku bisa menyusun dan mengurai kubus, balok, serta gabungannya menjadi berbagai bentuk bangun ruang. | | | |
+| Aku bisa menggambar tampilan susunan kubus/balok dari tampak depan, tampak samping, dan tampak atas secara akurat. | | | |
+| Aku bisa menentukan lokasi suatu titik pada sistem berpetak menggunakan pasangan huruf dan bilangan. | | | |
+| Aku bisa menghitung jarak horizontal dan vertikal antara dua titik pada sistem berpetak serta menentukan jalur yang mungkin dilalui. | | | |
+
+### Refleksi Pendidik (Guru)
+
+1. Apakah seluruh Tujuan Pembelajaran berhasil dicapai oleh sebagian besar murid dalam 3 pertemuan ini?
+2. Apakah penggunaan kubus manipulatif fisik dan IFP Board efektif membantu murid memvisualisasikan bangun ruang?
+3. Apakah distribusi sintaks Direct Instruction antar pertemuan sudah berjalan natural dan logis?
+4. Bagaimana keterlibatan murid dalam aktivitas kelompok dan diskusi?
+5. Apakah nilai-nilai KBC berhasil terinternalisasi secara natural dalam pembelajaran?
+
+---
+
+<table style="width:100%;border-collapse:collapse;border:none;margin-top:8px">
+<tr>
+<td style="border:none;width:35%;padding:0">&nbsp;</td>
+<td style="border:none;width:65%;padding:0;text-align:left">Yogyakarta, 23 Mei 2026</td>
+</tr>
+<tr>
+<td style="border:none;padding:0;padding-top:12px">Mengetahui,<br>Kepala Madrasah,</td>
+<td style="border:none;padding:0;padding-top:12px">Guru Mata Pelajaran,</td>
+</tr>
+<tr>
+<td style="border:none;padding:0;height:60px">&nbsp;</td>
+<td style="border:none;padding:0;height:60px">&nbsp;</td>
+</tr>
+<tr>
+<td style="border:none;padding:0"><strong>Kusumo</strong><br>NIP. 198503122000122021</td>
+<td style="border:none;padding:0"><strong>Wilmar</strong><br>NIP. 199301222020031011</td>
+</tr>
+</table>`;
+
+function loadDummy(){
+  // Isi lastGeneratedMarkdown dengan dummy
+  lastGeneratedMarkdown = DUMMY_MARKDOWN;
+  // Render ke result box
+  const box = document.getElementById('result-box');
+  const section = document.getElementById('result-section');
+  section.style.display = 'block';
+  box.className = 'result-box';
+  try {
+    marked.setOptions({gfm:true, breaks:false});
+    box.innerHTML = marked.parse(DUMMY_MARKDOWN);
+  } catch(e){
+    box.textContent = DUMMY_MARKDOWN;
+  }
+  box.scrollIntoView({behavior:'smooth', block:'start'});
+  showToast('🧪 Dummy loaded — silakan test Download Word', 'success', 5000);
 }
 </script>
 
