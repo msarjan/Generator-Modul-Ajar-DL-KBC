@@ -2973,8 +2973,10 @@ function downloadPDF(){
   div[style*="display:flex"]{display:flex!important}
   div[style*="justify-content:space-between"]{justify-content:space-between!important}
   /* Tabel penutup tanpa garis */
-  table[style*="border:none"] td{border:none!important}
+  table[style*="border:none"] td{border:none!important;font-weight:normal!important}
   table[style*="border:none"]{border:none!important}
+  /* Nama tetap bold, teks biasa (Mengetahui, NIP.) tidak bold */
+  table[style*="border:none"] td strong{font-weight:700!important}
   @media print{
     body{padding:.8cm 1.2cm}
     h2,h3{page-break-after:avoid}
