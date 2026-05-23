@@ -927,73 +927,118 @@ function showToast(msg, type='error', duration=4000){
 }
 
 // ══════════════════════════════════════════
-// SISTEM KODE INVITE BETA
+// SISTEM KODE INVITE BETA — validasi via Supabase (server-side)
 // ══════════════════════════════════════════
-const INVITE_CODES = [
-  'BETA-K7M2','BETA-X9P4','BETA-R3T8','BETA-W5N1','BETA-H6Q9',
-  'BETA-J2L7','BETA-F4V3','BETA-D8B6','BETA-C1Z5','BETA-G9Y2',
-  'BETA-A7E4','BETA-U3S8','BETA-M6I1','BETA-P2O9','BETA-T5N3',
-  'BETA-B8K7','BETA-V4X2','BETA-Q1W6','BETA-L9R5','BETA-E3H8'
-];
-const KUOTA_PER_KODE = 4;
-const INVITE_KEY     = 'mam_invite_code';
-const KUOTA_KEY      = 'mam_kuota_sisa';
+const INVITE_KEY = 'mam_invite_code';
+let _kuotaSisaCache = null; // cache kuota di memori selama sesi
 
-function getKuotaSisa(){
-  const v = localStorage.getItem(KUOTA_KEY);
-  return v === null ? KUOTA_PER_KODE : parseInt(v);
-}
 function getKodeAktif(){
   return localStorage.getItem(INVITE_KEY) || '';
 }
-function kurangKuota(){
-  const sisa = getKuotaSisa();
-  const baru = Math.max(0, sisa - 1);
-  localStorage.setItem(KUOTA_KEY, baru);
-  updateKuotaBadge();
-  return baru;
-}
-function updateKuotaBadge(){
+function updateKuotaBadge(sisa){
   const el = document.getElementById('kuota-badge');
   if(!el) return;
-  const sisa = getKuotaSisa();
+  if(sisa === null || sisa === undefined){ el.textContent=''; return; }
   el.textContent = `${sisa} modul tersisa`;
   el.style.color  = sisa <= 1 ? '#DC2626' : 'var(--green-dark)';
 }
 
-function submitInviteCode(){
+// ── Panggil /api/invite di Vercel ──
+async function callInviteAPI(action, code){
+  const res = await fetch('/api/invite', {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ action, code })
+  });
+  return res.json();
+}
+
+// ── Submit kode invite — validasi ke Supabase ──
+async function submitInviteCode(){
   const input = document.getElementById('invite-input').value.trim().toUpperCase();
   const errEl = document.getElementById('invite-error');
+  const btn   = document.querySelector('#invite-overlay button');
 
   if(!input){
     errEl.textContent = 'Mohon masukkan kode invite.';
     return;
   }
-  if(!INVITE_CODES.includes(input)){
-    errEl.textContent = '❌ Kode tidak valid. Periksa kembali atau hubungi @sarjan.eth.';
-    return;
-  }
 
-  // Kode valid — simpan dan lanjut
-  localStorage.setItem(INVITE_KEY, input);
-  if(localStorage.getItem(KUOTA_KEY) === null){
-    localStorage.setItem(KUOTA_KEY, KUOTA_PER_KODE);
+  // Tampilkan loading
+  errEl.textContent = '';
+  if(btn){ btn.disabled = true; btn.textContent = '⏳ Memeriksa…'; }
+
+  try {
+    const data = await callInviteAPI('check', input);
+
+    if(!data.valid){
+      errEl.textContent = '❌ Kode tidak valid. Periksa kembali atau hubungi @sarjan.eth.';
+      if(btn){ btn.disabled = false; btn.textContent = 'Masuk'; }
+      return;
+    }
+
+    if(data.kuota_sisa <= 0){
+      errEl.textContent = '❌ Kuota kode ini sudah habis. Hubungi @sarjan.eth untuk kode baru.';
+      if(btn){ btn.disabled = false; btn.textContent = 'Masuk'; }
+      return;
+    }
+
+    // Kode valid & ada kuota — simpan ke localStorage & lanjut
+    localStorage.setItem(INVITE_KEY, input);
+    _kuotaSisaCache = data.kuota_sisa;
+    updateKuotaBadge(_kuotaSisaCache);
+    document.getElementById('invite-overlay').style.display = 'none';
+    if(btn){ btn.disabled = false; btn.textContent = 'Masuk'; }
+    checkOnboarding();
+
+  } catch(e) {
+    errEl.textContent = '⚠️ Gagal terhubung ke server. Coba lagi.';
+    if(btn){ btn.disabled = false; btn.textContent = 'Masuk'; }
   }
-  // Update badge kuota langsung
-  updateKuotaBadge();
-  document.getElementById('invite-overlay').style.display = 'none';
-  // Cek apakah perlu tampilkan onboarding
-  checkOnboarding();
 }
 
-function checkInviteCode(){
+// ── Cek kode saat aplikasi dibuka ──
+async function checkInviteCode(){
   const kode = getKodeAktif();
-  if(!kode || !INVITE_CODES.includes(kode)){
-    // Belum punya kode valid — tampilkan layar invite
+  if(!kode){
     document.getElementById('invite-overlay').style.display = 'flex';
     return false;
   }
-  return true;
+  // Verifikasi ke Supabase
+  try {
+    const data = await callInviteAPI('check', kode);
+    if(!data.valid || data.kuota_sisa <= 0){
+      // Kode tidak valid atau kuota habis — paksa masukkan kode baru
+      localStorage.removeItem(INVITE_KEY);
+      _kuotaSisaCache = null;
+      document.getElementById('invite-overlay').style.display = 'flex';
+      return false;
+    }
+    _kuotaSisaCache = data.kuota_sisa;
+    updateKuotaBadge(_kuotaSisaCache);
+    return true;
+  } catch(e) {
+    // Kalau server tidak terjangkau, izinkan pakai kode lama (graceful degradation)
+    updateKuotaBadge(_kuotaSisaCache);
+    return true;
+  }
+}
+
+// ── Kurangi kuota setelah generate berhasil ──
+async function kurangKuota(){
+  const kode = getKodeAktif();
+  if(!kode) return 0;
+  try {
+    const data = await callInviteAPI('use', kode);
+    _kuotaSisaCache = data.kuota_sisa ?? 0;
+    updateKuotaBadge(_kuotaSisaCache);
+    return _kuotaSisaCache;
+  } catch(e) {
+    // Fallback: kurangi dari cache lokal
+    if(_kuotaSisaCache !== null) _kuotaSisaCache = Math.max(0, _kuotaSisaCache - 1);
+    updateKuotaBadge(_kuotaSisaCache);
+    return _kuotaSisaCache ?? 0;
+  }
 }
 
 // ── Onboarding ──
@@ -1697,15 +1742,11 @@ initAutoSave();
   document.getElementById('tanggal').value=`${yyyy}-${mm}-${dd}`;
 })();
 // Tampilkan invite screen atau onboarding saat pertama buka
-if(!checkInviteCode()){
-  // invite overlay sudah ditampilkan oleh checkInviteCode
-} else {
-  checkOnboarding();
-}
-// Update badge kuota
-updateKuotaBadge();
-// Cek kelengkapan step awal
-checkStepCompletion();
+(async () => {
+  const valid = await checkInviteCode();
+  if(valid) checkOnboarding();
+  checkStepCompletion();
+})();
 
 // ── Preview lengkap (TIDAK panggil AI, hanya tampilan) ──
 function updatePreview(){
@@ -2505,12 +2546,11 @@ function showKuotaHabisBanner(){
 }
 
 function resetKodeInvite(){
-  // Hapus kode dan kuota dari localStorage
+  // Hapus kode dari localStorage & reset cache
   localStorage.removeItem(INVITE_KEY);
-  localStorage.removeItem(KUOTA_KEY);
-  // Reset badge langsung — kosongkan dulu sampai kode baru dimasukkan
-  const badge = document.getElementById('kuota-badge');
-  if(badge){ badge.textContent = ''; }
+  _kuotaSisaCache = null;
+  // Reset badge
+  updateKuotaBadge(null);
   // Sembunyikan result section
   document.getElementById('result-section').style.display = 'none';
   // Tampilkan layar kode invite
@@ -2524,9 +2564,9 @@ function resetKodeInvite(){
 }
 
 async function generateModul(){
-  // Cek kuota terlebih dahulu
-  const sisa = getKuotaSisa();
-  if(sisa <= 0){
+  // Cek kuota dari cache (sudah diambil saat checkInviteCode)
+  const sisa = _kuotaSisaCache;
+  if(sisa !== null && sisa <= 0){
     showKuotaHabisBanner();
     return;
   }
@@ -2615,8 +2655,8 @@ async function generateModul(){
         box.innerHTML='<div style="padding:20px;color:#92400E;background:#FEF3C7;border-radius:8px"><strong>⚠️ AI tidak mengembalikan hasil.</strong><br>Mungkin ada masalah dengan bahan ajar atau input. Coba periksa kembali bahan ajar (pastikan terbaca, bukan scan gambar) atau coba lagi.</div>';
       } else {
         lastGeneratedMarkdown=text;
-        // Kurangi kuota setelah generate berhasil
-        const sisaBaru = kurangKuota();
+        // Kurangi kuota ke Supabase setelah generate berhasil
+        const sisaBaru = await kurangKuota();
         if(sisaBaru <= 1){
           showToast(`✅ Modul berhasil dibuat! Sisa kuota Anda: ${sisaBaru} modul lagi.`, 'warning');
         }
