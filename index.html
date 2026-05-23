@@ -179,6 +179,63 @@
   .theme-dot.active{box-shadow:0 0 0 2px var(--green-dark)}
   .theme-dot.active::after{content:'✓';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px;font-weight:700;text-shadow:0 1px 1px rgba(0,0,0,.3)}
 
+  /* ── Mobile Header ── */
+  .header-actions{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .btn-settings{padding:6px 12px;background:transparent;border:1px solid var(--border2);border-radius:var(--radius-sm);font-size:12px;color:var(--muted);cursor:pointer;font-family:inherit;transition:all .15s;display:flex;align-items:center;gap:5px}
+  .btn-settings:hover{background:var(--green-light);border-color:var(--green);color:var(--green-dark)}
+  .btn-settings.active{background:var(--green-light);border-color:var(--green);color:var(--green-dark)}
+
+  /* ── Settings Panel ── */
+  .settings-panel{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin-bottom:16px;display:none;animation:fadeDown .2s ease}
+  .settings-panel.open{display:block}
+  @keyframes fadeDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+  .settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .settings-section{display:flex;flex-direction:column;gap:8px}
+  .settings-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+  .theme-picker-full{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .theme-option{display:flex;align-items:center;gap:6px;padding:6px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;font-size:12px;font-weight:500;color:var(--muted);transition:all .15s;background:#fff}
+  .theme-option:hover{border-color:var(--green);color:var(--text)}
+  .theme-option.active{border-color:var(--green);background:var(--green-light);color:var(--green-dark);font-weight:600}
+  .theme-swatch{width:16px;height:16px;border-radius:50%;flex-shrink:0;border:2px solid rgba(255,255,255,.6);box-shadow:0 0 0 1px rgba(0,0,0,.12)}
+  .settings-toggle-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)}
+  .settings-toggle-row:last-child{border-bottom:none;padding-bottom:0}
+  .settings-toggle-label{font-size:13px;color:var(--text);font-weight:500}
+  .settings-toggle-desc{font-size:11px;color:var(--muted);margin-top:2px}
+  .toggle-switch{position:relative;width:38px;height:22px;flex-shrink:0}
+  .toggle-switch input{opacity:0;width:0;height:0}
+  .toggle-slider{position:absolute;inset:0;background:#D1D5DB;border-radius:11px;cursor:pointer;transition:.2s}
+  .toggle-slider:before{content:'';position:absolute;width:16px;height:16px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+  .toggle-switch input:checked+.toggle-slider{background:var(--green)}
+  .toggle-switch input:checked+.toggle-slider:before{transform:translateX(16px)}
+  .settings-divider{width:1px;background:var(--border);margin:0 4px}
+
+  /* ── Hamburger (mobile only) ── */
+  .hamburger{display:none;flex-direction:column;gap:4px;cursor:pointer;padding:8px;border:1px solid var(--border2);border-radius:var(--radius-sm);background:#fff}
+  .hamburger span{display:block;width:18px;height:2px;background:var(--text);border-radius:2px;transition:all .2s}
+  .hamburger.open span:nth-child(1){transform:rotate(45deg) translate(4px,4px)}
+  .hamburger.open span:nth-child(2){opacity:0}
+  .hamburger.open span:nth-child(3){transform:rotate(-45deg) translate(4px,-4px)}
+
+  @media(max-width:640px){
+    .header{flex-wrap:wrap;gap:10px;margin-bottom:16px}
+    .header-text h1{font-size:15px}
+    .header-text p{font-size:11px}
+    .header-actions{width:100%;justify-content:flex-end;gap:6px}
+    /* Hide theme dots + label in header on mobile — moved to settings panel */
+    .header .theme-dot, .header .theme-label{display:none}
+    #kuota-badge{font-size:10px}
+    .hamburger{display:flex}
+    /* Hide non-essential header actions on mobile when collapsed */
+    .header-actions.collapsed .btn-settings,
+    .header-actions.collapsed .btn-reset,
+    .header-actions.collapsed .autosave-dot{display:none}
+    .header-actions.collapsed .hamburger{display:flex}
+    /* Show all when expanded */
+    .header-actions.expanded .btn-settings,
+    .header-actions.expanded .btn-reset,
+    .header-actions.expanded .autosave-dot{display:flex}
+  }
+
   /* Print/PDF styles */
   @media print {
     body{background:#fff}
@@ -331,16 +388,92 @@
       <h1>Generator Modul Ajar Madrasah</h1>
       <p>Deep Learning × Kurikulum Berbasis Cinta · Kemenag RI</p>
     </div>
-    <div style="margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <div class="header-actions" id="header-actions">
       <span id="kuota-badge" style="font-size:11px;font-weight:600;color:var(--green-dark);background:var(--green-light);padding:3px 10px;border-radius:20px;white-space:nowrap"></span>
-      <button class="btn-reset" onclick="confirmReset()" title="Reset semua isian form">↺ Mulai Ulang</button>
       <span class="autosave-dot" id="autosave-dot" title="Status simpan otomatis"></span>
+      <!-- Theme dots: desktop only (hidden on mobile via CSS) -->
       <span class="theme-label">🎨</span>
       <div class="theme-dot active" data-theme="hijau" onclick="setTheme('hijau')" style="background:#1D9E75" title="Hijau (default)"></div>
       <div class="theme-dot" data-theme="biru" onclick="setTheme('biru')" style="background:#1E5BA8" title="Biru"></div>
       <div class="theme-dot" data-theme="ungu" onclick="setTheme('ungu')" style="background:#7C3AED" title="Ungu"></div>
       <div class="theme-dot" data-theme="marun" onclick="setTheme('marun')" style="background:#9F1239" title="Marun"></div>
       <div class="theme-dot" data-theme="cokelat" onclick="setTheme('cokelat')" style="background:#92551A" title="Cokelat"></div>
+      <button class="btn-reset" onclick="confirmReset()" title="Reset semua isian form">↺ Mulai Ulang</button>
+      <button class="btn-settings" id="btn-settings" onclick="toggleSettings()" title="Pengaturan">⚙️ Pengaturan</button>
+      <!-- Hamburger: mobile only -->
+      <div class="hamburger" id="hamburger" onclick="toggleMobileMenu()" title="Menu">
+        <span></span><span></span><span></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SETTINGS PANEL ══ -->
+  <div class="settings-panel" id="settings-panel">
+    <div class="settings-grid">
+      <!-- Kolom 1: Tema Warna -->
+      <div class="settings-section">
+        <div class="settings-title">🎨 Tema Warna</div>
+        <div class="theme-picker-full" id="theme-picker-full">
+          <div class="theme-option active" data-theme="hijau" onclick="setTheme('hijau')">
+            <div class="theme-swatch" style="background:#1D9E75"></div> Hijau
+          </div>
+          <div class="theme-option" data-theme="biru" onclick="setTheme('biru')">
+            <div class="theme-swatch" style="background:#1E5BA8"></div> Biru
+          </div>
+          <div class="theme-option" data-theme="ungu" onclick="setTheme('ungu')">
+            <div class="theme-swatch" style="background:#7C3AED"></div> Ungu
+          </div>
+          <div class="theme-option" data-theme="marun" onclick="setTheme('marun')">
+            <div class="theme-swatch" style="background:#9F1239"></div> Marun
+          </div>
+          <div class="theme-option" data-theme="cokelat" onclick="setTheme('cokelat')">
+            <div class="theme-swatch" style="background:#92551A"></div> Cokelat
+          </div>
+        </div>
+      </div>
+
+      <!-- Kolom 2: Preferensi -->
+      <div class="settings-section">
+        <div class="settings-title">⚙️ Preferensi</div>
+        <div class="settings-toggle-row">
+          <div>
+            <div class="settings-toggle-label">Tampilkan Panduan Awal</div>
+            <div class="settings-toggle-desc">Tampilkan layar panduan saat buka aplikasi</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="pref-onboarding" onchange="savePref('onboarding', this.checked)">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="settings-toggle-row">
+          <div>
+            <div class="settings-toggle-label">Auto-save Isian Form</div>
+            <div class="settings-toggle-desc">Simpan otomatis topik, CP, dan TP ke browser</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="pref-autosave" checked onchange="savePref('autosave', this.checked)">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="settings-toggle-row" style="border-bottom:none;padding-bottom:0">
+          <div>
+            <div class="settings-toggle-label">Simpan Data Identitas</div>
+            <div class="settings-toggle-desc">Nama guru, madrasah, kota tersimpan otomatis</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="pref-identity" checked onchange="savePref('identity', this.checked)">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Aksi Tambahan -->
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <button class="btn" onclick="showOnboarding()" style="font-size:12px;padding:6px 12px">ℹ️ Lihat Panduan</button>
+      <button class="btn" onclick="resetKodeInvite()" style="font-size:12px;padding:6px 12px">🔑 Ganti Kode Invite</button>
+      <button class="btn" onclick="confirmReset()" style="font-size:12px;padding:6px 12px;color:#DC2626">↺ Reset Semua Data Form</button>
+      <span style="margin-left:auto;font-size:11px;color:var(--muted)">Versi Beta · <a href="https://instagram.com/sarjan.eth" target="_blank" style="color:var(--green-dark);text-decoration:none;font-weight:600">@sarjan.eth</a></span>
     </div>
   </div>
 
@@ -1180,8 +1313,12 @@ function setTheme(name){
   root.style.setProperty('--green',t.primary);
   root.style.setProperty('--green-light',t.light);
   root.style.setProperty('--green-dark',t.dark);
-  // Update active dot
+  // Update active dot (header, desktop)
   document.querySelectorAll('.theme-dot').forEach(d=>{
+    d.classList.toggle('active',d.dataset.theme===name);
+  });
+  // Update active option (settings panel)
+  document.querySelectorAll('.theme-option').forEach(d=>{
     d.classList.toggle('active',d.dataset.theme===name);
   });
   // Save preference
@@ -1192,6 +1329,40 @@ function setTheme(name){
   const saved=localStorage.getItem('mam_theme');
   if(saved && THEMES[saved]) setTheme(saved);
 })();
+
+// ── Settings Panel ──
+function toggleSettings(){
+  const panel=document.getElementById('settings-panel');
+  const btn=document.getElementById('btn-settings');
+  const isOpen=panel.classList.toggle('open');
+  btn.classList.toggle('active',isOpen);
+  // Sync preference toggles when opening
+  if(isOpen) syncPrefToggles();
+}
+
+function syncPrefToggles(){
+  document.getElementById('pref-onboarding').checked = !localStorage.getItem('mam_onboarded');
+  document.getElementById('pref-autosave').checked   = localStorage.getItem('mam_pref_autosave') !== '0';
+  document.getElementById('pref-identity').checked   = localStorage.getItem('mam_pref_identity') !== '0';
+}
+
+function savePref(key, val){
+  if(key==='onboarding'){
+    if(val) localStorage.removeItem('mam_onboarded');
+    else    localStorage.setItem('mam_onboarded','1');
+  } else {
+    localStorage.setItem('mam_pref_'+key, val?'1':'0');
+  }
+}
+
+// ── Hamburger (mobile) ──
+function toggleMobileMenu(){
+  const actions=document.getElementById('header-actions');
+  const ham=document.getElementById('hamburger');
+  const isExpanded=actions.classList.toggle('expanded');
+  actions.classList.toggle('collapsed',!isExpanded);
+  ham.classList.toggle('open',isExpanded);
+}
 
 // ── localStorage: simpan identitas otomatis ──
 const SAVED_FIELDS=['nama','nip','madrasah','kota','kepsek','nip-kepsek'];
@@ -1618,6 +1789,15 @@ if(!checkInviteCode()){
 updateKuotaBadge();
 // Cek kelengkapan step awal
 checkStepCompletion();
+// Sync pref toggles (in case settings panel is opened)
+syncPrefToggles();
+// Init mobile menu: start collapsed on small screens
+(function(){
+  const actions=document.getElementById('header-actions');
+  if(window.innerWidth<=640){
+    actions.classList.add('collapsed');
+  }
+})();
 
 // ── Preview lengkap (TIDAK panggil AI, hanya tampilan) ──
 function updatePreview(){
@@ -2941,12 +3121,12 @@ ${content}
     <li><strong>Non-komersial.</strong> Aplikasi ini dikembangkan secara mandiri, bersifat non-komersial, dan tidak berafiliasi resmi dengan Kementerian Agama RI. Referensi kurikulum (KMA 1503/2025, Permendikdasmen No. 10/2025) digunakan semata untuk keperluan pedagogis.</li>
   </ul>
   <p style="display:flex;align-items:center;flex-wrap:wrap;gap:8px">
-    <span>Dikembangkan oleh <strong>Muh. Sarjan</strong> · Versi Beta</span>
-    <span style="color:var(--border2)">·</span>
-    <a href="https://instagram.com/sarjan.eth" target="_blank" rel="noopener" style="color:var(--green-dark);font-weight:600;text-decoration:none">📸 DM Instagram @sarjan.eth</a>
-    <span style="color:var(--border2)">·</span>
-    <button onclick="showOnboarding()" style="background:none;border:none;padding:0;font-size:11px;color:var(--green-dark);cursor:pointer;font-family:inherit;font-weight:600;text-decoration:underline">ℹ️ Lihat panduan awal</button>
-  </p>
+      <span>Dikembangkan oleh <strong>Muh. Sarjan</strong> · Versi Beta</span>
+      <span style="color:var(--border2)">·</span>
+      <a href="https://instagram.com/sarjan.eth" target="_blank" rel="noopener" style="color:var(--green-dark);font-weight:600;text-decoration:none">📸 DM Instagram @sarjan.eth</a>
+      <span style="color:var(--border2)">·</span>
+      <button onclick="toggleSettings()" style="background:none;border:none;padding:0;font-size:11px;color:var(--green-dark);cursor:pointer;font-family:inherit;font-weight:600;text-decoration:underline">⚙️ Pengaturan & Panduan</button>
+    </p>
 </div>
 
 </body>
