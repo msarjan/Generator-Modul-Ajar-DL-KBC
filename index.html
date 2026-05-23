@@ -3105,38 +3105,47 @@ function downloadWord(){
           continue;
         }
 
-        // Bullet
+        // Bullet — semua level pakai <p>, tidak ada <li>
         if(/^- /.test(t)){
           const btext=t.slice(2).trim();
           const ind0=raw.length-raw.trimStart().length;
+          // Kumpulkan sub-items (indent lebih dalam)
           const subs=[];
           let j=i+1;
           while(j<lines.length){
             const nr=lines[j],nt=nr.trim();
             if(!nt){j++;continue;}
             const ni=nr.length-nr.trimStart().length;
-            if(ni>ind0&&/^\d+\./.test(nt)){subs.push({type:'ol',text:nt.replace(/^\d+\.\s*/,'')});j++;}
-            else if(ni>ind0&&/^- /.test(nt)){subs.push({type:'ul',text:nt.slice(2)});j++;}
-            else break;
+            if(ni>ind0&&/^\d+\./.test(nt)){
+              subs.push({type:'ol',text:nt.replace(/^\d+\.\s*/,''),ni});j++;
+            } else if(ni>ind0&&/^- /.test(nt)){
+              subs.push({type:'ul',text:nt.slice(2),ni});j++;
+            } else break;
           }
           if(subs.length){
-            out.push(`<p class="bh"><span class="bm">&#8226;</span> ${inl(btext)}</p>`);
-            const lt=subs[0].type;
-            out.push(`<${lt} class="sl">`);
-            subs.forEach((s,si)=>{
-              const nm=lt==='ol'?`<span class="nm">${si+1}.</span> `:'';
-              out.push(`<li>${nm}${inl(s.text)}</li>`);
+            // Parent bullet (level 1)
+            out.push(`<p class="b1"><span class="bm">&#8226;</span> ${inl(btext)}</p>`);
+            // Sub-items — semua jadi <p class="b2">, tidak ada <li>
+            let olIdx=0;
+            subs.forEach(s=>{
+              if(s.type==='ol'){
+                olIdx++;
+                out.push(`<p class="b2"><span class="nm">${olIdx}.</span> ${inl(s.text)}</p>`);
+              } else {
+                olIdx=0;
+                out.push(`<p class="b2"><span class="bm">&#8226;</span> ${inl(s.text)}</p>`);
+              }
             });
-            out.push(`</${lt}>`);
             i=j;
           } else {
-            out.push(`<p class="bi"><span class="bm">&#8226;</span> ${inl(btext)}</p>`);
+            // Bullet standalone (level 1)
+            out.push(`<p class="b1"><span class="bm">&#8226;</span> ${inl(btext)}</p>`);
             i++;
           }
           continue;
         }
 
-        // Numbered standalone
+        // Numbered standalone (indent 0)
         if(/^\d+\.\s/.test(t)){
           const num=t.match(/^(\d+)\./)[1];
           const txt=t.replace(/^\d+\.\s*/,'');
@@ -3157,13 +3166,14 @@ h3{font-size:11pt;font-weight:bold;margin:10pt 0 3pt 0}
 h4{font-size:11pt;font-weight:bold;color:#333;margin:8pt 0 2pt 0}
 p{margin:0 0 4pt 0;line-height:1.45}
 p.sub{text-align:center;font-style:italic;color:#555;margin-bottom:8pt}
-p.bi{margin:0 0 3pt 0}
-p.bh{margin:0 0 1pt 0}
-p.ni{margin:0 0 3pt 0;padding-left:16pt;text-indent:-16pt}
-span.bm{margin-right:5pt}
+/* Bullet system — semua pakai <p>, tidak ada <li>, tidak ada Left Tab */
+p.b1{margin:0 0 3pt 0;padding-left:0;text-indent:0}
+p.b2{margin:0 0 2pt 0;padding-left:14pt;text-indent:0}
+p.b3{margin:0 0 2pt 0;padding-left:26pt;text-indent:0}
+p.ni{margin:0 0 3pt 0;padding-left:14pt;text-indent:-14pt}
+p.ni2{margin:0 0 2pt 0;padding-left:26pt;text-indent:-14pt}
+span.bm{margin-right:4pt}
 span.nm{font-weight:bold;margin-right:3pt}
-ol.sl,ul.sl{margin:1pt 0 4pt 16pt;padding:0;list-style:none}
-ol.sl li,ul.sl li{margin:0 0 2pt 0;padding:0;line-height:1.45}
 table{border-collapse:collapse;width:100%;margin:5pt 0 8pt 0;font-size:10pt}
 td,th{border:1pt solid #999;padding:3pt 5pt;vertical-align:top;line-height:1.35}
 th{background:#F3F4F6;font-weight:bold;text-align:left}
