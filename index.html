@@ -3008,124 +3008,189 @@ ${content}
   w.document.close();
   w.focus();
 }// ── Download Word (.doc via HTML) ──
+// ── Download Word (.doc) — Custom Markdown Parser ──
 function downloadWord(){
   if(!lastGeneratedMarkdown){
     showToast('Modul belum digenerate.','warning');
     return;
   }
-
   const btn = document.querySelector('button[onclick="downloadWord()"]');
   if(btn){ btn.textContent='⏳ Menyiapkan...'; btn.disabled=true; }
 
   try {
-    const resultBox = document.getElementById('result-box');
-    const clone = resultBox.cloneNode(true);
-
-    // ══ TRANSFORMASI DOM ══
-
-    // 1. Keluarkan <ol>/<ul> yang nested di dalam <li> ke level parent
-    //    Ini penyebab utama indentasi berlipat dan numbering kacau
-    clone.querySelectorAll('li').forEach(li => {
-      const nestedLists = li.querySelectorAll(':scope > ol, :scope > ul');
-      nestedLists.forEach(nested => {
-        const parent = li.parentNode;
-        // Sisipkan nested list setelah li yang mengandungnya
-        parent.insertBefore(nested, li.nextSibling);
-      });
-    });
-
-    // 2. Keluarkan <p> dari dalam <li> — jadikan teks langsung
-    clone.querySelectorAll('li p').forEach(p => {
-      const li = p.parentNode;
-      // Pindahkan semua child node dari <p> ke <li>
-      while(p.firstChild){
-        li.insertBefore(p.firstChild, p);
-      }
-      p.remove();
-    });
-
-    // 3. Hapus <li> kosong (setelah transformasi di atas)
-    clone.querySelectorAll('li').forEach(li => {
-      if(!li.textContent.trim()) li.remove();
-    });
-
-    // 4. Tandai tabel tanda tangan
-    clone.querySelectorAll('table').forEach(tbl => {
-      if(tbl.textContent.includes('Mengetahui') || tbl.textContent.includes('Kepala Madrasah')){
-        tbl.className = 'ttd';
-        tbl.removeAttribute('style');
-        tbl.querySelectorAll('td,th').forEach(td => td.removeAttribute('style'));
-        tbl.querySelectorAll('tr').forEach(tr => {
-          const cells = tr.querySelectorAll('td');
-          if(cells.length >= 2){
-            cells[0].style.width = '35%';
-            cells[1].style.width = '65%';
-          }
-        });
-      }
-    });
-
-    const htmlContent = clone.innerHTML;
     const topik    = document.getElementById('topik')?.value?.trim() || 'Modul-Ajar';
-    const safeName = topik.replace(/[^\w\s]/g,'').replace(/\s+/g,'-').slice(0,50) || 'Modul-Ajar';
+    const safeName = topik.replace(/[^\w\s]/g,'').replace(/\s+/g,'-').slice(0,50)||'Modul-Ajar';
 
-    const wordCSS = `
-      body{font-family:Calibri,sans-serif;font-size:11pt;color:#1a1a1a;line-height:1.45;margin:0;padding:0}
-      h1{font-size:15pt;font-weight:bold;text-align:center;border-bottom:2pt solid #1a1a1a;padding-bottom:4pt;margin:0 0 10pt 0}
-      h2{font-size:12pt;font-weight:bold;border-bottom:1pt solid #555;padding-bottom:3pt;margin:16pt 0 6pt 0}
-      h3{font-size:11pt;font-weight:bold;margin:12pt 0 4pt 0}
-      h4{font-size:11pt;font-weight:bold;color:#333;margin:8pt 0 3pt 0}
-      p{margin:0 0 4pt 0;line-height:1.45}
+    function inl(text){
+      return text
+        .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+        .replace(/\*([^*]+?)\*/g,'<em>$1</em>');
+    }
 
-      ul{margin:0 0 4pt 0;padding-left:16pt;list-style-type:disc}
-      ol{margin:0 0 4pt 0;padding-left:16pt;list-style-type:decimal}
-      li{margin:0 0 3pt 0;padding-left:0;line-height:1.45;text-align:left}
+    function buildTable(lines){
+      const rows = lines
+        .filter(l=>!l.trim().match(/^\|[\s\-:|]+\|$/))
+        .map(l=>l.split('|').slice(1,-1).map(c=>c.trim()));
+      if(!rows.length) return '';
+      let h='<table>';
+      rows.forEach((cells,ri)=>{
+        h+='<tr>';
+        cells.forEach(c=>{ const tg=ri===0?'th':'td'; h+=`<${tg}>${inl(c)}</${tg}>`; });
+        h+='</tr>';
+      });
+      return h+'</table>';
+    }
 
-      table{border-collapse:collapse;width:100%;margin:6pt 0 10pt 0;font-size:10pt}
-      table td,table th{border:1pt solid #999;padding:4pt 6pt;vertical-align:top;line-height:1.35}
-      table th{background-color:#F3F4F6;font-weight:bold;text-align:left}
+    function buildSig(kota,k1,n1,k2,n2){
+      return `<table class="ttd">
+<tr><td style="width:50%">&nbsp;</td><td style="width:50%">${inl(kota)}</td></tr>
+<tr><td>Mengetahui,<br>Kepala Madrasah,</td><td>Guru Mata Pelajaran,</td></tr>
+<tr><td style="height:50px">&nbsp;</td><td style="height:50px">&nbsp;</td></tr>
+<tr><td><strong>${k1}</strong><br>${n1}</td><td><strong>${k2}</strong><br>${n2}</td></tr>
+</table>`;
+    }
 
-      table.ttd,table.ttd td,table.ttd th{
-        border:none!important;background:none!important;
-        padding:2pt 0;vertical-align:top
+    function mdToHtml(md){
+      const lines=md.split('\n');
+      const out=[];
+      let i=0;
+      const isTbl=l=>l.trim().startsWith('|');
+      const isSep=l=>/^\|[\s\-:|]+\|$/.test(l.trim());
+      const isSig=block=>{const t=block.join('');return t.includes('Mengetahui')||t.includes('Kepala Madrasah');};
+
+      while(i<lines.length){
+        const raw=lines[i];
+        const t=raw.trim();
+        if(!t){i++;continue;}
+
+        // HTML table (tanda tangan)
+        if(t.startsWith('<table')){
+          const block=[];
+          while(i<lines.length&&!lines[i].includes('</table>')){block.push(lines[i]);i++;}
+          block.push(lines[i]||'');i++;
+          const html=block.join('\n');
+          const kota=(html.match(/(\w[\w,\s]+\d{4})/)||[''])[0].trim();
+          const namas=[...html.matchAll(/<strong>([^<]+)<\/strong>/g)].map(m=>m[1]);
+          const nips=[...html.matchAll(/NIP\.\s*([\d.]+)/g)].map(m=>'NIP. '+m[1]);
+          out.push(buildSig(kota,namas[0]||'',nips[0]||'',namas[1]||'',nips[1]||''));
+          continue;
+        }
+        if(t.startsWith('<')){i++;continue;}
+
+        // Headings
+        if(/^# (?!#)/.test(t)){out.push(`<h1>${inl(t.slice(2).trim())}</h1>`);i++;continue;}
+        if(/^\*[^*].+[^*]\*$/.test(t)||/^\*\S+\*$/.test(t)){out.push(`<p class="sub">${inl(t.slice(1,-1))}</p>`);i++;continue;}
+        if(/^## (?!#)/.test(t)){out.push(`<h2>${inl(t.slice(3).trim())}</h2>`);i++;continue;}
+        if(/^### (?!#)/.test(t)){out.push(`<h3>${inl(t.slice(4).trim())}</h3>`);i++;continue;}
+        if(/^#### /.test(t)){out.push(`<h4>${inl(t.slice(5).trim())}</h4>`);i++;continue;}
+        if(/^---+$/.test(t)){out.push('<hr>');i++;continue;}
+
+        // Tabel markdown
+        if(isTbl(t)){
+          const tbl=[];
+          while(i<lines.length&&isTbl(lines[i])){tbl.push(lines[i]);i++;}
+          if(isSig(tbl)){
+            const rows=tbl.filter(l=>!isSep(l)).map(l=>l.split('|').slice(1,-1).map(c=>c.trim()));
+            const kr=rows.find(r=>r.some(c=>/\d{4}/.test(c)));
+            const nr=rows.find(r=>r.some(c=>/^[A-Z][a-z]/.test(c)&&!c.includes('Mengetahui')&&!c.includes('Guru')&&!c.includes('Kepala')));
+            const nir=rows.find(r=>r.some(c=>c.includes('NIP')));
+            out.push(buildSig(
+              kr?kr.find(c=>/\d{4}/.test(c))||'':'',
+              nr?nr[0]||'':'',nir?nir[0]||'':'',
+              nr?nr[1]||'':'',nir?nir[1]||'':''
+            ));
+          } else {
+            out.push(buildTable(tbl));
+          }
+          continue;
+        }
+
+        // Bullet
+        if(/^- /.test(t)){
+          const btext=t.slice(2).trim();
+          const ind0=raw.length-raw.trimStart().length;
+          const subs=[];
+          let j=i+1;
+          while(j<lines.length){
+            const nr=lines[j],nt=nr.trim();
+            if(!nt){j++;continue;}
+            const ni=nr.length-nr.trimStart().length;
+            if(ni>ind0&&/^\d+\./.test(nt)){subs.push({type:'ol',text:nt.replace(/^\d+\.\s*/,'')});j++;}
+            else if(ni>ind0&&/^- /.test(nt)){subs.push({type:'ul',text:nt.slice(2)});j++;}
+            else break;
+          }
+          if(subs.length){
+            out.push(`<p class="bh"><span class="bm">&#8226;</span> ${inl(btext)}</p>`);
+            const lt=subs[0].type;
+            out.push(`<${lt} class="sl">`);
+            subs.forEach((s,si)=>{
+              const nm=lt==='ol'?`<span class="nm">${si+1}.</span> `:'';
+              out.push(`<li>${nm}${inl(s.text)}</li>`);
+            });
+            out.push(`</${lt}>`);
+            i=j;
+          } else {
+            out.push(`<p class="bi"><span class="bm">&#8226;</span> ${inl(btext)}</p>`);
+            i++;
+          }
+          continue;
+        }
+
+        // Numbered standalone
+        if(/^\d+\.\s/.test(t)){
+          const num=t.match(/^(\d+)\./)[1];
+          const txt=t.replace(/^\d+\.\s*/,'');
+          out.push(`<p class="ni"><span class="nm">${num}.</span> ${inl(txt)}</p>`);
+          i++;continue;
+        }
+
+        out.push(`<p>${inl(t)}</p>`);
+        i++;
       }
-      table.ttd{margin-top:20pt}
+      return out.join('\n');
+    }
 
-      strong{font-weight:bold}
-      em{font-style:italic}
-      hr{border:none;border-top:1pt solid #ddd;margin:8pt 0}
-    `;
+    const css=`body{font-family:Calibri,sans-serif;font-size:11pt;color:#1a1a1a;line-height:1.45}
+h1{font-size:15pt;font-weight:bold;text-align:center;border-bottom:2pt solid #1a1a1a;padding-bottom:4pt;margin:0 0 10pt 0}
+h2{font-size:12pt;font-weight:bold;border-bottom:1pt solid #555;padding-bottom:3pt;margin:14pt 0 5pt 0}
+h3{font-size:11pt;font-weight:bold;margin:10pt 0 3pt 0}
+h4{font-size:11pt;font-weight:bold;color:#333;margin:8pt 0 2pt 0}
+p{margin:0 0 4pt 0;line-height:1.45}
+p.sub{text-align:center;font-style:italic;color:#555;margin-bottom:8pt}
+p.bi{margin:0 0 3pt 0}
+p.bh{margin:0 0 1pt 0}
+p.ni{margin:0 0 3pt 0;padding-left:16pt;text-indent:-16pt}
+span.bm{margin-right:5pt}
+span.nm{font-weight:bold;margin-right:3pt}
+ol.sl,ul.sl{margin:1pt 0 4pt 16pt;padding:0;list-style:none}
+ol.sl li,ul.sl li{margin:0 0 2pt 0;padding:0;line-height:1.45}
+table{border-collapse:collapse;width:100%;margin:5pt 0 8pt 0;font-size:10pt}
+td,th{border:1pt solid #999;padding:3pt 5pt;vertical-align:top;line-height:1.35}
+th{background:#F3F4F6;font-weight:bold;text-align:left}
+table.ttd,table.ttd td{border:none!important;background:none!important;padding:2pt 0;vertical-align:top}
+table.ttd{margin-top:18pt}
+strong{font-weight:bold}em{font-style:italic}
+hr{border:none;border-top:1pt solid #ddd;margin:8pt 0}`;
 
-    const wordHTML = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
-xmlns:w="urn:schemas-microsoft-com:office:word"
-xmlns="http://www.w3.org/TR/REC-html40">
-<head>
-<meta charset="utf-8">
-<meta name="ProgId" content="Word.Document">
-<meta name="Generator" content="Microsoft Word 15">
-<!--[if gte mso 9]><xml>
-<w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom><w:DoNotOptimizeForBrowser/></w:WordDocument>
-</xml><![endif]-->
-<style>
-@page{size:A4;margin:2.5cm 2cm 2.5cm 2cm}
-${wordCSS}
-</style>
-</head>
-<body>${htmlContent}</body>
-</html>`;
+    const body=mdToHtml(lastGeneratedMarkdown);
+    const doc=`<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8"><meta name="ProgId" content="Word.Document"><meta name="Generator" content="Microsoft Word 15">
+<!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View><w:Zoom>100</w:Zoom><w:DoNotOptimizeForBrowser/></w:WordDocument></xml><![endif]-->
+<style>@page{size:A4;margin:2.5cm 2cm 2.5cm 2cm}
+${css}</style></head>
+<body>${body}</body></html>`;
 
-    const blob = new Blob(['\ufeff', wordHTML], {type:'application/msword;charset=utf-8'});
-    const url  = URL.createObjectURL(blob);
-    const a    = Object.assign(document.createElement('a'),{href:url,download:`${safeName}.doc`});
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    const blob=new Blob(['\ufeff',doc],{type:'application/msword;charset=utf-8'});
+    const url=URL.createObjectURL(blob);
+    const a=Object.assign(document.createElement('a'),{href:url,download:`${safeName}.doc`});
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
     setTimeout(()=>URL.revokeObjectURL(url),2000);
     showToast('✅ File Word berhasil didownload!','success');
 
-  } catch(err){
+  }catch(err){
     console.error('Word error:',err);
-    showToast('Gagal membuat file Word: '+err.message,'warning');
+    showToast('Gagal: '+err.message,'warning');
   }
-
   if(btn){btn.textContent='📄 Download Word';btn.disabled=false;}
 }
 </script>
